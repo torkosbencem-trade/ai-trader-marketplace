@@ -71,7 +71,15 @@ function getCount(data: unknown): number | null {
 
   const record = data as Record<string, unknown>;
 
-  for (const key of ["items", "signals", "strategies", "trades", "logs", "test_runs", "runs"]) {
+  for (const key of [
+    "items",
+    "signals",
+    "strategies",
+    "trades",
+    "logs",
+    "test_runs",
+    "runs",
+  ]) {
     const value = record[key];
 
     if (Array.isArray(value)) return value.length;
@@ -113,11 +121,32 @@ function getNestedBoolean(
   return fallback;
 }
 
+function getNestedString(
+  data: unknown,
+  keys: string[],
+  fallback = "—",
+): string {
+  if (!data || typeof data !== "object") return fallback;
+
+  const record = data as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
 export default async function ProjectStatusPage() {
   const checks = await Promise.all([
     checkJson("Backend Health", "/health"),
     checkJson("Execution Status", "/execution/status"),
     checkJson("Execution Audit", "/execution/audit?limit=10"),
+    checkJson("Execution Gateway Status", "/execution/gateway-status"),
     checkJson("Marketplace Strategies", "/marketplace/strategies"),
     checkJson("Marketplace Signals", "/marketplace/signals"),
     checkJson("Shadow Live Config", "/shadow-live/config"),
@@ -125,12 +154,27 @@ export default async function ProjectStatusPage() {
   ]);
 
   const failed = checks.filter((check) => !check.ok);
-  const executionStatus = checks.find((check) => check.label === "Execution Status");
-  const executionAudit = checks.find((check) => check.label === "Execution Audit");
+
+  const executionStatus = checks.find(
+    (check) => check.label === "Execution Status",
+  );
+
+  const executionAudit = checks.find(
+    (check) => check.label === "Execution Audit",
+  );
+
+  const executionGatewayStatus = checks.find(
+    (check) => check.label === "Execution Gateway Status",
+  );
 
   const realOrdersEnabled = getNestedBoolean(
     executionStatus?.data,
-    ["real_orders_enabled", "realOrdersEnabled", "allow_real_orders", "allowRealOrders"],
+    [
+      "real_orders_enabled",
+      "realOrdersEnabled",
+      "allow_real_orders",
+      "allowRealOrders",
+    ],
     false,
   );
 
@@ -146,7 +190,71 @@ export default async function ProjectStatusPage() {
     true,
   );
 
-  const safetyOk = failed.length === 0 && !realOrdersEnabled && !realOrderSent && dryRunOnly;
+  const gatewayName = getNestedString(
+    executionGatewayStatus?.data,
+    ["gateway"],
+    "UNKNOWN",
+  );
+
+  const gatewayEngine = getNestedString(
+    executionGatewayStatus?.data,
+    ["execution_engine", "executionEngine"],
+    "UNKNOWN",
+  );
+
+  const gatewayAvailable = getNestedBoolean(
+    executionGatewayStatus?.data,
+    ["gateway_available", "gatewayAvailable"],
+    false,
+  );
+
+  const gatewayDryRunOnly = getNestedBoolean(
+    executionGatewayStatus?.data,
+    ["dry_run_only", "dryRunOnly"],
+    false,
+  );
+
+  const gatewayRealOrderSent = getNestedBoolean(
+    executionGatewayStatus?.data,
+    ["real_order_sent", "realOrderSent"],
+    true,
+  );
+
+  const gatewayNetworkRequestSent = getNestedBoolean(
+    executionGatewayStatus?.data,
+    ["network_request_sent", "networkRequestSent"],
+    true,
+  );
+
+  const gatewayBinanceOrderSent = getNestedBoolean(
+    executionGatewayStatus?.data,
+    ["binance_order_sent", "binanceOrderSent"],
+    true,
+  );
+
+  const auditLoggingEnabled = getNestedBoolean(
+    executionGatewayStatus?.data,
+    ["audit_logging", "auditLogging"],
+    false,
+  );
+
+  const gatewaySafe =
+    executionGatewayStatus?.ok === true &&
+    gatewayAvailable &&
+    gatewayName === "DRY_RUN_EXCHANGE_GATEWAY" &&
+    gatewayEngine === "dry_run_only" &&
+    gatewayDryRunOnly &&
+    !gatewayRealOrderSent &&
+    !gatewayNetworkRequestSent &&
+    !gatewayBinanceOrderSent &&
+    auditLoggingEnabled;
+
+  const safetyOk =
+    failed.length === 0 &&
+    !realOrdersEnabled &&
+    !realOrderSent &&
+    dryRunOnly &&
+    gatewaySafe;
 
   return (
     <PremiumPageShell>
@@ -168,8 +276,9 @@ export default async function ProjectStatusPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 md:text-base">
-                Quick developer checkpoint for backend connectivity, execution safety,
-                audit visibility, marketplace data, and shadow-live configuration.
+                Quick developer checkpoint for backend connectivity, execution
+                safety, audit visibility, marketplace data, and shadow-live
+                configuration.
               </p>
             </div>
 
@@ -208,38 +317,184 @@ export default async function ProjectStatusPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
               Real orders enabled
             </p>
-            <p className={realOrdersEnabled ? "mt-3 text-3xl font-black text-red-200" : "mt-3 text-3xl font-black text-emerald-200"}>
+            <p
+              className={
+                realOrdersEnabled
+                  ? "mt-3 text-3xl font-black text-red-200"
+                  : "mt-3 text-3xl font-black text-emerald-200"
+              }
+            >
               {String(realOrdersEnabled)}
             </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Must remain false
-            </p>
+            <p className="mt-2 text-xs text-slate-500">Must remain false</p>
           </Card>
 
           <Card className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
               real_order_sent
             </p>
-            <p className={realOrderSent ? "mt-3 text-3xl font-black text-red-200" : "mt-3 text-3xl font-black text-emerald-200"}>
+            <p
+              className={
+                realOrderSent
+                  ? "mt-3 text-3xl font-black text-red-200"
+                  : "mt-3 text-3xl font-black text-emerald-200"
+              }
+            >
               {String(realOrderSent)}
             </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Must remain false
-            </p>
+            <p className="mt-2 text-xs text-slate-500">Must remain false</p>
           </Card>
 
           <Card className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
               Dry run only
             </p>
-            <p className={dryRunOnly ? "mt-3 text-3xl font-black text-emerald-200" : "mt-3 text-3xl font-black text-red-200"}>
+            <p
+              className={
+                dryRunOnly
+                  ? "mt-3 text-3xl font-black text-emerald-200"
+                  : "mt-3 text-3xl font-black text-red-200"
+              }
+            >
               {String(dryRunOnly)}
             </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Must remain true
-            </p>
+            <p className="mt-2 text-xs text-slate-500">Must remain true</p>
           </Card>
         </section>
+
+        <Card className="p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="mb-3 flex flex-wrap gap-2">
+                <StatusPill
+                  label={gatewaySafe ? "Gateway Safe" : "Gateway Needs Review"}
+                  tone={gatewaySafe ? "success" : "danger"}
+                />
+                <StatusPill
+                  label={safetyOk ? "Go State" : "No-Go State"}
+                  tone={safetyOk ? "success" : "danger"}
+                />
+              </div>
+
+              <h2 className="text-2xl font-bold text-white">
+                Safety Readiness Checklist
+              </h2>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Consolidated execution safety state based on backend health,
+                execution status, audit data, and the dry-run exchange gateway
+                status endpoint.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-slate-400">
+              Backend:{" "}
+              <span className="font-semibold text-slate-200">
+                {API_BASE_URL}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Backend endpoints
+              </p>
+              <p
+                className={
+                  failed.length === 0
+                    ? "mt-2 font-bold text-emerald-200"
+                    : "mt-2 font-bold text-red-200"
+                }
+              >
+                {checks.length - failed.length}/{checks.length} passing
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Gateway
+              </p>
+              <p
+                className={
+                  gatewaySafe
+                    ? "mt-2 font-bold text-emerald-200"
+                    : "mt-2 font-bold text-red-200"
+                }
+              >
+                {gatewayName}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Engine
+              </p>
+              <p
+                className={
+                  gatewayEngine === "dry_run_only"
+                    ? "mt-2 font-bold text-emerald-200"
+                    : "mt-2 font-bold text-red-200"
+                }
+              >
+                {gatewayEngine}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Real orders sent
+              </p>
+              <p
+                className={
+                  !gatewayRealOrderSent && !realOrderSent
+                    ? "mt-2 font-bold text-emerald-200"
+                    : "mt-2 font-bold text-red-200"
+                }
+              >
+                {String(gatewayRealOrderSent || realOrderSent)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Exchange requests
+              </p>
+              <p
+                className={
+                  !gatewayNetworkRequestSent && !gatewayBinanceOrderSent
+                    ? "mt-2 font-bold text-emerald-200"
+                    : "mt-2 font-bold text-red-200"
+                }
+              >
+                network={String(gatewayNetworkRequestSent)}, binance=
+                {String(gatewayBinanceOrderSent)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Audit logging
+              </p>
+              <p
+                className={
+                  auditLoggingEnabled
+                    ? "mt-2 font-bold text-emerald-200"
+                    : "mt-2 font-bold text-red-200"
+                }
+              >
+                {String(auditLoggingEnabled)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm leading-6 text-cyan-50">
+            Full backend safety check:
+            <code className="ml-2 rounded-lg bg-black/30 px-2 py-1 text-xs text-cyan-100">
+              python run_safety_suite.py --base-url {API_BASE_URL}
+            </code>
+          </div>
+        </Card>
 
         <Card className="overflow-hidden p-0">
           <div className="border-b border-white/10 p-5">
@@ -260,53 +515,76 @@ export default async function ProjectStatusPage() {
                   <th className="px-5 py-4">HTTP</th>
                   <th className="px-5 py-4">Count</th>
                   <th className="px-5 py-4">URL</th>
-                  <th className="px-5 py-4">Error</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-white/10">
-                {checks.map((check) => (
-                  <tr key={check.label} className="transition hover:bg-white/[0.035]">
-                    <td className="px-5 py-4">
-                      <StatusPill
-                        label={check.ok ? "OK" : "FAIL"}
-                        tone={getStatusTone(check.ok)}
-                      />
-                    </td>
+                {checks.map((check) => {
+                  const count = getCount(check.data);
 
-                    <td className="px-5 py-4 font-bold text-white">
-                      {check.label}
-                    </td>
+                  return (
+                    <tr
+                      key={check.label}
+                      className="align-top transition hover:bg-white/[0.035]"
+                    >
+                      <td className="px-5 py-4">
+                        <StatusPill
+                          label={check.ok ? "OK" : "FAIL"}
+                          tone={getStatusTone(check.ok)}
+                        />
+                      </td>
 
-                    <td className="px-5 py-4 text-slate-300">
-                      {check.status ?? "—"}
-                    </td>
+                      <td className="px-5 py-4 font-bold text-white">
+                        {check.label}
+                      </td>
 
-                    <td className="px-5 py-4 text-slate-300">
-                      {getCount(check.data) ?? "—"}
-                    </td>
+                      <td className="px-5 py-4 text-slate-300">
+                        {check.status ?? "—"}
+                      </td>
 
-                    <td className="max-w-md truncate px-5 py-4 text-slate-500">
-                      {check.url}
-                    </td>
+                      <td className="px-5 py-4 text-slate-300">
+                        {count ?? "—"}
+                      </td>
 
-                    <td className="px-5 py-4 text-amber-200">
-                      {check.error ?? "—"}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="max-w-[420px] px-5 py-4 text-xs text-slate-500">
+                        <span className="break-all">{check.url}</span>
+                        {check.error ? (
+                          <p className="mt-2 text-red-200">{check.error}</p>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </Card>
 
-        <Card className="p-5">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <StatusPill label="Raw execution status" tone="info" />
-          </div>
+        <section className="grid gap-6 lg:grid-cols-2">
+          <Card className="p-5">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <StatusPill label="Execution Status" tone="info" />
+              <StatusPill
+                label={executionStatus?.ok ? "Loaded" : "Unavailable"}
+                tone={executionStatus?.ok ? "success" : "danger"}
+              />
+            </div>
 
-          <JsonPreview data={executionStatus?.data ?? null} />
-        </Card>
+            <JsonPreview data={executionStatus?.data ?? null} />
+          </Card>
+
+          <Card className="p-5">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <StatusPill label="Execution Gateway" tone="info" />
+              <StatusPill
+                label={gatewaySafe ? "Safe" : "Review"}
+                tone={gatewaySafe ? "success" : "danger"}
+              />
+            </div>
+
+            <JsonPreview data={executionGatewayStatus?.data ?? null} />
+          </Card>
+        </section>
       </div>
     </PremiumPageShell>
   );
