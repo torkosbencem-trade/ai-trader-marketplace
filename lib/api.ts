@@ -478,3 +478,10 @@ export async function getStats() {
 export async function getExecutionGatewayStatus() {
   return apiFetch("/execution/gateway-status");
 }
+
+export async function evaluateStrategyPromotion(payload: Record<string, unknown>) {
+  return apiFetch("/strategy-promotion/evaluate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
