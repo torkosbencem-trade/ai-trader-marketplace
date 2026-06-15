@@ -60,6 +60,12 @@ const navItems: NavItem[] = [
     href: "/promotion",
     description: "Strategy promotion decision engine",
   },
+    {
+    label: "Promotion Audit",
+    shortLabel: "Audit",
+    href: "/promotion-audit",
+    description: "Strategy promotion decision history",
+  },
   {
     label: "Execution Audit",
     shortLabel: "Audit",

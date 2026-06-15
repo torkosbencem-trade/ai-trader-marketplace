@@ -492,3 +492,7 @@ export async function evaluateAllStrategyPromotions(payload: Record<string, unkn
     body: JSON.stringify(payload),
   });
 }
+
+export async function getStrategyPromotionAudit(limit = 50) {
+  return apiFetch(`/strategy-promotion/audit?limit=${limit}`);
+}
