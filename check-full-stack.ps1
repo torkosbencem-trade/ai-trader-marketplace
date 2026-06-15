@@ -152,6 +152,7 @@ $frontendRoutes = @(
   @{ Label = "Subscription"; Url = "$frontendBase/subscription" },
   @{ Label = "Strategy Detail"; Url = "$frontendBase/strategies/test-strategy" },
   @{ Label = "Live Signals Alias"; Url = "$frontendBase/live-signals" }
+  @{ Label = "Promotion Gate"; Url = "$frontendBase/promotion" },
 )
 foreach ($route in $frontendRoutes) {
   Test-Url -Label $route.Label -Url $route.Url
