@@ -130,6 +130,7 @@ $backendEndpoints = @(
   @{ Label = "Execution status"; Url = "$backendBase/execution/status" }
   @{ Label = "Execution audit"; Url = "$backendBase/execution/audit?limit=10" }
   @{ Label = "Execution gateway status"; Url = "$backendBase/execution/gateway-status" }
+  @{ Label = "Binance Testnet status"; Url = "$backendBase/binance-testnet/status" }
 )
 
 foreach ($endpoint in $backendEndpoints) {
@@ -139,20 +140,21 @@ foreach ($endpoint in $backendEndpoints) {
 Write-Section "Frontend routes"
 
 $frontendRoutes = @(
-  @{ Label = "Marketplace"; Url = "$frontendBase/" },
-  @{ Label = "Dashboard"; Url = "$frontendBase/dashboard" },
-  @{ Label = "Signals"; Url = "$frontendBase/signals" },
-  @{ Label = "Performance"; Url = "$frontendBase/performance" },
-  @{ Label = "Test Runs"; Url = "$frontendBase/test-runs" },
-  @{ Label = "Shadow Live"; Url = "$frontendBase/shadow-live" },
-  @{ Label = "Execution"; Url = "$frontendBase/execution" },
-  @{ Label = "Execution Audit"; Url = "$frontendBase/execution-audit" },
-  @{ Label = "Project Status"; Url = "$frontendBase/project-status" },
-  @{ Label = "System"; Url = "$frontendBase/system" },
-  @{ Label = "Subscription"; Url = "$frontendBase/subscription" },
-  @{ Label = "Strategy Detail"; Url = "$frontendBase/strategies/test-strategy" },
+  @{ Label = "Marketplace"; Url = "$frontendBase/" }
+  @{ Label = "Dashboard"; Url = "$frontendBase/dashboard" }
+  @{ Label = "Signals"; Url = "$frontendBase/signals" }
+  @{ Label = "Performance"; Url = "$frontendBase/performance" }
+  @{ Label = "Test Runs"; Url = "$frontendBase/test-runs" }
+  @{ Label = "Shadow Live"; Url = "$frontendBase/shadow-live" }
+  @{ Label = "Execution"; Url = "$frontendBase/execution" }
+  @{ Label = "Promotion Gate"; Url = "$frontendBase/promotion" }
+  @{ Label = "Promotion Audit"; Url = "$frontendBase/promotion-audit" }
+  @{ Label = "Execution Audit"; Url = "$frontendBase/execution-audit" }
+  @{ Label = "Project Status"; Url = "$frontendBase/project-status" }
+  @{ Label = "System"; Url = "$frontendBase/system" }
+  @{ Label = "Subscription"; Url = "$frontendBase/subscription" }
+  @{ Label = "Strategy Detail"; Url = "$frontendBase/strategies/test-strategy" }
   @{ Label = "Live Signals Alias"; Url = "$frontendBase/live-signals" }
-  @{ Label = "Promotion Gate"; Url = "$frontendBase/promotion" },
 )
 foreach ($route in $frontendRoutes) {
   Test-Url -Label $route.Label -Url $route.Url
