@@ -7,7 +7,6 @@ import {
   Card,
   CardHeader,
   JsonPreview,
-  MetricCard,
   PageHero,
   PremiumPageShell,
   StatusPill,
@@ -62,8 +61,78 @@ function getChecks(data: unknown): Record<string, boolean> {
   );
 }
 
+function formatCheckLabel(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace("at least", "≥")
+    .replace("under", "<")
+    .replace("no real orders sent", "No real orders")
+    .replace("dry run gateway", "Dry-run gateway")
+    .replace("dry run only", "Dry-run only")
+    .replace("positive total pnl", "Positive PnL")
+    .replace("audit logging", "Audit logging")
+    .replace("gateway available", "Gateway available")
+    .replace("minimum trades 30", "Minimum 30 trades")
+    .replace("win rate ≥ 45", "Win rate ≥ 45%")
+    .replace("profit factor ≥ 1 2", "Profit factor ≥ 1.2")
+    .replace("max drawdown < 15", "Max drawdown < 15%");
+}
+
 const inputClassName =
-  "w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/50 focus:bg-sky-400/5";
+  "w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 focus:bg-sky-400/5";
+
+const labelClassName =
+  "text-xs font-bold uppercase tracking-[0.16em] text-slate-500";
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  step,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  step?: string;
+}) {
+  return (
+    <label className="block space-y-2">
+      <span className={labelClassName}>{label}</span>
+      <input
+        className={inputClassName}
+        type={type}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function DecisionBadge({
+  label,
+  active,
+}: {
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3 ${
+        active
+          ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+          : "border-amber-400/25 bg-amber-400/10 text-amber-100"
+      }`}
+    >
+      <p className="text-xs font-bold uppercase tracking-[0.16em] opacity-70">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-black">{active ? "Approved" : "Hold"}</p>
+    </div>
+  );
+}
 
 export default function PromotionPage() {
   const [strategyId, setStrategyId] = useState("trend-pulse-ai");
@@ -78,14 +147,25 @@ export default function PromotionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const promotionScore = getNumber(result, "promotion_score", 0);
+  const hasResult = result !== null;
+  const promotionScore = hasResult ? getNumber(result, "promotion_score", 0) : 0;
+  const promotionScoreLabel = hasResult ? String(promotionScore) : "—";
   const status = getString(result, "status", "not_evaluated");
-  const recommendedNextStep = getString(result, "recommended_next_step", "Run an evaluation first.");
+  const recommendedNextStep = getString(
+    result,
+    "recommended_next_step",
+    "Run an evaluation to generate a promotion decision.",
+  );
   const eligibleForShadowLive = getBoolean(result, "eligible_for_shadow_live");
   const eligibleForTestnet = getBoolean(result, "eligible_for_testnet");
   const blockedReasons = getStringArray(result, "blocked_reasons");
   const warnings = getStringArray(result, "warnings");
   const checks = getChecks(result);
+  const passedChecks = Object.values(checks).filter(Boolean).length;
+  const totalChecks = Object.keys(checks).length;
+
+  const scoreTone =
+    promotionScore >= 80 ? "success" : promotionScore >= 50 ? "warning" : "danger";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,15 +204,15 @@ export default function PromotionPage() {
     <PremiumPageShell>
       <PageHero
         pills={[
-          { label: "Strategy Promotion", tone: "info" },
-          { label: "Dry Run Gate", tone: "success" },
+          { label: "Promotion Engine", tone: "info" },
+          { label: "Dry-Run Protected", tone: "success" },
           {
-            label: eligibleForTestnet ? "Testnet Review Ready" : "Not Promoted",
+            label: eligibleForTestnet ? "Testnet Review Ready" : "Mainnet Blocked",
             tone: eligibleForTestnet ? "success" : "warning",
           },
         ]}
         title="Strategy Promotion Gate"
-        description="Evaluate whether a strategy is ready to move from observation into shadow-live or Binance Testnet review. Mainnet remains disabled."
+        description="A decision cockpit for validating whether a strategy can move from observation into shadow-live or Binance Testnet review."
       />
 
       {error ? (
@@ -141,39 +221,107 @@ export default function PromotionPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Promotion Score"
-          value={`${promotionScore}%`}
-          helper="Rule pass ratio"
-          tone={promotionScore >= 80 ? "success" : promotionScore >= 50 ? "warning" : "danger"}
-        />
-        <MetricCard
-          label="Shadow Live"
-          value={String(eligibleForShadowLive)}
-          helper="Can continue simulation"
-          tone={eligibleForShadowLive ? "success" : "warning"}
-        />
-        <MetricCard
-          label="Testnet Review"
-          value={String(eligibleForTestnet)}
-          helper="Never mainnet"
-          tone={eligibleForTestnet ? "success" : "warning"}
-        />
-        <MetricCard
-          label="Status"
-          value={status}
-          helper="Promotion gate state"
-          tone={eligibleForTestnet ? "success" : status === "blocked" ? "danger" : "warning"}
-        />
-      </div>
+      <section className="grid gap-6 xl:grid-cols-[1fr_1.25fr]">
+        <Card>
+          <CardHeader
+            eyebrow="Decision"
+            title="Promotion Verdict"
+            description="The gate checks performance, drawdown, execution safety, and audit readiness."
+            action={<StatusPill label={status} tone={scoreTone} />}
+          />
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-6 p-6">
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-black p-6">
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
+              <div className="absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
+
+              <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+                    Current Strategy
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black text-white">
+                    {strategyName}
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-400">{strategyId}</p>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <StatusPill
+                      label={eligibleForShadowLive ? "Shadow Live Ready" : "Shadow Hold"}
+                      tone={eligibleForShadowLive ? "success" : "warning"}
+                    />
+                    <StatusPill
+                      label={eligibleForTestnet ? "Testnet Review Ready" : "Testnet Hold"}
+                      tone={eligibleForTestnet ? "success" : "warning"}
+                    />
+                    <StatusPill label="Mainnet Disabled" tone="danger" />
+                  </div>
+                </div>
+
+                                <div
+                  className="grid h-36 w-36 shrink-0 place-items-center rounded-full p-2 md:h-40 md:w-40"
+                  style={{
+                    background: hasResult
+                      ? `conic-gradient(rgb(56 189 248) ${promotionScore * 3.6}deg, rgba(255,255,255,0.08) 0deg)`
+                      : "linear-gradient(135deg, rgba(148,163,184,0.18), rgba(15,23,42,0.92))",
+                  }}
+                >
+                  <div className="grid h-full w-full place-items-center rounded-full border border-white/10 bg-slate-950 text-center shadow-2xl shadow-black/40">
+                    <div>
+                      <p className="text-4xl font-black text-white md:text-5xl">
+                        {promotionScoreLabel}
+                      </p>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        {hasResult ? "Score" : "Pending"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <DecisionBadge label="Shadow Live" active={eligibleForShadowLive} />
+              <DecisionBadge label="Testnet Review" active={eligibleForTestnet} />
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                Recommended Next Step
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-200">
+                {recommendedNextStep}
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs text-slate-500">Trades</p>
+                <p className="mt-1 text-xl font-black text-white">{totalTrades}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs text-slate-500">Win Rate</p>
+                <p className="mt-1 text-xl font-black text-white">{winRate}%</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs text-slate-500">Profit Factor</p>
+                <p className="mt-1 text-xl font-black text-white">{profitFactor}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs text-slate-500">Drawdown</p>
+                <p className="mt-1 text-xl font-black text-white">
+                  {maxDrawdown}%
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         <Card>
           <CardHeader
             eyebrow="Input"
-            title="Evaluate Strategy"
-            description="Enter performance metrics from backtest, paper trading, or shadow-live validation."
+            title="Strategy Metrics"
+            description="Enter validation metrics. Execution safety values remain locked to dry-run mode."
             action={
               <StatusPill
                 label={submitting ? "Evaluating" : "Ready"}
@@ -182,117 +330,121 @@ export default function PromotionPage() {
             }
           />
 
-          <form onSubmit={handleSubmit} className="space-y-5 p-6">
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Strategy ID
-              </span>
-              <input
-                className={inputClassName}
-                value={strategyId}
-                onChange={(event) => setStrategyId(event.target.value)}
-              />
-            </label>
-
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Strategy Name
-              </span>
-              <input
-                className={inputClassName}
+          <form onSubmit={handleSubmit} className="space-y-6 p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Strategy ID" value={strategyId} onChange={setStrategyId} />
+              <Field
+                label="Strategy Name"
                 value={strategyName}
-                onChange={(event) => setStrategyName(event.target.value)}
+                onChange={setStrategyName}
               />
-            </label>
-
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Total Trades
-              </span>
-              <input
-                className={inputClassName}
-                type="number"
+              <Field
+                label="Total Trades"
                 value={totalTrades}
-                onChange={(event) => setTotalTrades(event.target.value)}
+                onChange={setTotalTrades}
+                type="number"
               />
-            </label>
-
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Win Rate %
-              </span>
-              <input
-                className={inputClassName}
+              <Field
+                label="Win Rate %"
+                value={winRate}
+                onChange={setWinRate}
                 type="number"
                 step="0.1"
-                value={winRate}
-                onChange={(event) => setWinRate(event.target.value)}
               />
-            </label>
-
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Profit Factor
-              </span>
-              <input
-                className={inputClassName}
+              <Field
+                label="Profit Factor"
+                value={profitFactor}
+                onChange={setProfitFactor}
                 type="number"
                 step="0.01"
-                value={profitFactor}
-                onChange={(event) => setProfitFactor(event.target.value)}
               />
-            </label>
-
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Max Drawdown %
-              </span>
-              <input
-                className={inputClassName}
+              <Field
+                label="Max Drawdown %"
+                value={maxDrawdown}
+                onChange={setMaxDrawdown}
                 type="number"
                 step="0.1"
-                value={maxDrawdown}
-                onChange={(event) => setMaxDrawdown(event.target.value)}
               />
-            </label>
-
-            <label className="space-y-2 block">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Total PnL
-              </span>
-              <input
-                className={inputClassName}
+              <Field
+                label="Total PnL"
+                value={totalPnl}
+                onChange={setTotalPnl}
                 type="number"
                 step="1"
-                value={totalPnl}
-                onChange={(event) => setTotalPnl(event.target.value)}
               />
-            </label>
+            </div>
+
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5">
+              <p className="text-sm font-bold text-emerald-100">
+                Safety lock active
+              </p>
+              <p className="mt-2 text-sm leading-6 text-emerald-100/75">
+                dry_run_only=true, gateway=DRY_RUN_EXCHANGE_GATEWAY,
+                real_order_sent=false, audit_logging=true.
+              </p>
+            </div>
 
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-4 text-sm font-bold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
-              {submitting ? "Evaluating..." : "Evaluate Promotion"}
+              {submitting ? "Evaluating Strategy..." : "Evaluate Promotion"}
             </button>
           </form>
+        </Card>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card>
+          <CardHeader
+            eyebrow="Validation"
+            title="Promotion Checks"
+            description={
+              totalChecks
+                ? `${passedChecks}/${totalChecks} checks passed.`
+                : "Run an evaluation to see all checks."
+            }
+          />
+
+          <div className="grid gap-3 p-6 md:grid-cols-2">
+            {Object.entries(checks).length > 0 ? (
+              Object.entries(checks).map(([key, passed]) => (
+                <div
+                  key={key}
+                  className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
+                    passed
+                      ? "border-emerald-400/20 bg-emerald-400/10"
+                      : "border-rose-400/20 bg-rose-500/10"
+                  }`}
+                >
+                  <span className="text-sm font-medium text-slate-200">
+                    {formatCheckLabel(key)}
+                  </span>
+                  <StatusPill
+                    label={passed ? "PASS" : "FAIL"}
+                    tone={passed ? "success" : "danger"}
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400 md:col-span-2">
+                No evaluation yet.
+              </div>
+            )}
+          </div>
         </Card>
 
         <Card>
           <CardHeader
-            eyebrow="Result"
-            title="Promotion Decision"
-            description="The gate explains what passed, what failed, and the next safe step."
+            eyebrow="Notes"
+            title="Warnings & Blocks"
+            description="Reasons are separated so the next fix is obvious."
           />
 
-          <div className="space-y-5 p-6">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-300">
-              {recommendedNextStep}
-            </div>
-
+          <div className="space-y-4 p-6">
             {blockedReasons.length > 0 ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4">
+              <div className="rounded-3xl border border-rose-400/20 bg-rose-500/10 p-5">
                 <p className="font-bold text-rose-100">Blocked reasons</p>
                 <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-rose-100/80">
                   {blockedReasons.map((reason) => (
@@ -300,10 +452,17 @@ export default function PromotionPage() {
                   ))}
                 </ul>
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5">
+                <p className="font-bold text-emerald-100">No hard blocks</p>
+                <p className="mt-2 text-sm text-emerald-100/75">
+                  The current result has no blocking reason.
+                </p>
+              </div>
+            )}
 
             {warnings.length > 0 ? (
-              <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
+              <div className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
                 <p className="font-bold text-amber-100">Warnings</p>
                 <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-amber-100/80">
                   {warnings.map((warning) => (
@@ -311,27 +470,30 @@ export default function PromotionPage() {
                   ))}
                 </ul>
               </div>
-            ) : null}
-
-            <div className="grid gap-2">
-              {Object.entries(checks).map(([key, passed]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3"
-                >
-                  <span className="text-sm text-slate-300">{key}</span>
-                  <StatusPill
-                    label={passed ? "PASS" : "FAIL"}
-                    tone={passed ? "success" : "danger"}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {result ? <JsonPreview data={result} /> : null}
+            ) : (
+              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+                <p className="font-bold text-slate-200">No warnings yet</p>
+                <p className="mt-2 text-sm text-slate-400">
+                  Run or adjust the evaluation to generate warnings.
+                </p>
+              </div>
+            )}
           </div>
         </Card>
-      </div>
+      </section>
+
+      {result ? (
+        <Card>
+          <CardHeader
+            eyebrow="Raw Decision"
+            title="Promotion API Response"
+            description="Developer view for debugging the backend gate response."
+          />
+          <div className="p-6">
+            <JsonPreview data={result} />
+          </div>
+        </Card>
+      ) : null}
     </PremiumPageShell>
   );
 }
