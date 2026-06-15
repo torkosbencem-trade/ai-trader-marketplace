@@ -1,4 +1,4 @@
-import {
+﻿import {
   demoBackendHealth,
   demoExecutionStatus,
   demoPerformance,
@@ -12,6 +12,111 @@ import {
   demoTestRuns,
   withDemoFallback,
 } from "@/lib/demo-data";
+
+export type Signal = {
+  id?: string | number;
+  signal_id?: string | number;
+
+  strategy?: string;
+  strategy_id?: string | number;
+  strategy_name?: string;
+
+  symbol?: string;
+  side?: string;
+  direction?: string;
+  status?: string;
+  timeframe?: string;
+  mode?: string;
+
+  entry?: string | number;
+  entry_price?: number;
+  price?: number;
+
+  tp?: string | number;
+  sl?: string | number;
+  stop?: string | number;
+  target?: string | number;
+
+  stop_loss?: number | string;
+  stop_loss_price?: number | string;
+  take_profit?: number | string;
+  take_profit_price?: number | string;
+
+  confidence?: number | string;
+  score?: number;
+
+  riskStatus?: string;
+  guardStatus?: string;
+  risk?: string;
+
+  created_at?: string;
+  timestamp?: string;
+
+  reason?: string;
+  notes?: string;
+
+  [key: string]: unknown;
+};
+
+
+export type ShadowLiveConfig = {
+  enabled?: boolean;
+  shadow_live_enabled?: boolean;
+
+  emergency_stop: boolean;
+  max_order_usdt: number;
+  max_risk_percent: number;
+
+  min_confidence?: number;
+  max_daily_trades?: number;
+  allowed_symbols?: string[];
+  blocked_symbols?: string[];
+
+  created_at?: string;
+  updated_at?: string;
+
+  [key: string]: unknown;
+};
+
+export type DryRunOrderResult = {
+  status?: string;
+  message?: string;
+  reason?: string;
+
+  symbol?: string;
+  side?: string;
+  order_type?: string;
+
+  quantity?: number;
+  quantity_preview?: string | number;
+  price?: number | string;
+  entry_price?: number | string;
+  stop_loss_price?: number | string;
+  take_profit_price?: number | string;
+
+  order_value_usdt?: number;
+  notional_usdt?: number;
+  estimated_notional_usdt?: number;
+
+  dry_run?: boolean;
+  dry_run_only?: boolean;
+  accepted?: boolean;
+  rejected?: boolean;
+
+  real_order_sent?: boolean;
+  network_request_sent?: boolean;
+  binance_order_sent?: boolean;
+  order_network_request_sent?: boolean;
+
+  created_at?: string;
+  timestamp?: string;
+
+  order?: Record<string, unknown>;
+  checks?: Record<string, unknown>;
+
+  [key: string]: unknown;
+};
+
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
@@ -282,8 +387,8 @@ export async function getStrategyBySlug(slug: string) {
   return found ?? null;
 }
 
-export async function getSignals() {
-  return fetchOrDemo("/marketplace/signals", demoSignals);
+export async function getSignals(): Promise<Signal[]> {
+  return fetchOrDemo("/marketplace/signals", demoSignals) as Promise<Signal[]>;
 }
 
 export async function getPerformanceSummary() {
@@ -404,43 +509,30 @@ export async function getShadowLivePerformance() {
   return fetchOrDemo("/shadow-live/performance", demoShadowPerformance);
 }
 
-export async function getShadowLiveConfig() {
-  return fetchOrDemo("/shadow-live/config", demoShadowConfig);
+export async function getShadowLiveConfig(): Promise<ShadowLiveConfig> {
+  return apiFetch("/shadow-live/config") as Promise<ShadowLiveConfig>;
 }
 
-export async function updateShadowLiveConfig(payload: Record<string, unknown>) {
-  return fetchWithMethodsOrDemo(
-    "/shadow-live/config",
-    ["PATCH", "PUT", "POST"],
-    {
-      ...demoShadowConfig,
-      ...payload,
-      saved: true,
-      demo_fallback: true,
-    },
-    payload
-  );
+export async function updateShadowLiveConfig(
+  payload: Partial<ShadowLiveConfig>,
+): Promise<ShadowLiveConfig> {
+  return apiFetch("/shadow-live/config", {
+    method: "POST",
+    body: payload,
+  }) as Promise<ShadowLiveConfig>;
 }
 
 export async function getExecutionStatus() {
   return fetchOrDemo("/execution/status", demoExecutionStatus);
 }
 
-export async function submitDryRunOrder(payload: Record<string, unknown>) {
-  return fetchOrDemo(
-    "/execution/dry-run-order",
-    {
-      accepted: true,
-      dry_run: true,
-      real_order_sent: false,
-      demo_fallback: true,
-      received_payload: payload,
-    },
-    {
-      method: "POST",
-      body: payload,
-    }
-  );
+export async function submitDryRunOrder(
+  payload: Record<string, unknown>,
+): Promise<DryRunOrderResult> {
+  return apiFetch("/execution/dry-run-order", {
+    method: "POST",
+    body: payload,
+  }) as Promise<DryRunOrderResult>;
 }
 
 export async function closeTrade(payload: Record<string, unknown>) {
@@ -482,17 +574,23 @@ export async function getExecutionGatewayStatus() {
 export async function evaluateStrategyPromotion(payload: Record<string, unknown>) {
   return apiFetch("/strategy-promotion/evaluate", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
 
 export async function evaluateAllStrategyPromotions(payload: Record<string, unknown> = {}) {
   return apiFetch("/strategy-promotion/evaluate-all", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
 
 export async function getStrategyPromotionAudit(limit = 50) {
   return apiFetch(`/strategy-promotion/audit?limit=${limit}`);
 }
+
+export async function getBinanceTestnetStatus() {
+  return apiFetch("/binance-testnet/status");
+}
+
+

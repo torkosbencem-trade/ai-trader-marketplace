@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { BinanceTestnetStatusCard } from "@/components/system/BinanceTestnetStatusCard";
 import { ExecutionGatewayStatusCard } from "@/components/system/ExecutionGatewayStatusCard";
 
 import {
@@ -44,8 +45,6 @@ import {
   StatusPill,
   type Tone,
 } from "@/components/ui/PremiumUI";
-
-<ExecutionGatewayStatusCard />
 
 function StatusRow({
   label,
@@ -120,11 +119,11 @@ export default function SystemPage() {
       getShadowLivePerformance(),
     ]);
 
-    setHealthData(resolveSettled(healthResult, {}));
-    setExecutionData(resolveSettled(executionResult, {}));
-    setConfigData(resolveSettled(configResult, {}));
-    setPerformanceData(resolveSettled(performanceResult, {}));
-    setShadowPerformanceData(resolveSettled(shadowPerformanceResult, {}));
+    setHealthData(resolveSettled(healthResult, { status: "unknown", message: "Backend health not loaded." }));
+    setExecutionData(resolveSettled(executionResult, { status: "unknown", mode: "DRY_RUN_ONLY", dry_run_only: true, real_order_sent: false, binance_order_sent: false, network_request_sent: false }));
+    setConfigData(resolveSettled(configResult, { emergency_stop: false, max_order_usdt: 100, max_risk_percent: 1 }));
+    setPerformanceData(resolveSettled(performanceResult, { total_pnl: 0, pnl: 0, net_pnl: 0, win_rate: 0, total_trades: 0, trades: 0 }));
+    setShadowPerformanceData(resolveSettled(shadowPerformanceResult, { total_pnl: 0, pnl: 0, net_pnl: 0, win_rate: 0, total_trades: 0, trades: 0 }));
 
     const hasRejected = [
       healthResult,
@@ -135,14 +134,14 @@ export default function SystemPage() {
     ].some((result) => result.status === "rejected");
 
     if (hasRejected) {
-      setError("Néhány system adat nem töltődött be, de az oldal működik.");
+      setError("NĂ©hĂˇny system adat nem tĂ¶ltĹ‘dĂ¶tt be, de az oldal mĹ±kĂ¶dik.");
     }
 
     setLoading(false);
   }
 
   useEffect(() => {
-    loadSystemData();
+    void loadSystemData();
   }, []);
 
   const health = normalizeObject(healthData, [
@@ -160,47 +159,47 @@ export default function SystemPage() {
   const backendStatus = getValue<string>(
     health,
     ["status", "state", "message"],
-    "unknown"
+    "unknown",
   );
 
   const backendOk = ["ok", "healthy", "running", "up"].includes(
-    String(backendStatus).toLowerCase()
+    String(backendStatus).toLowerCase(),
   );
 
   const dryRunOnly = getBoolean(
     execution,
     ["dry_run_only", "dryRunOnly", "dry_run", "dryRun"],
-    true
+    true,
   );
 
   const realOrderSent = getBoolean(
     execution,
     ["real_order_sent", "realOrderSent", "real_order", "realOrder"],
-    false
+    false,
   );
 
   const executionMode = getValue<string>(
     execution,
     ["mode", "execution_mode", "executionMode", "status"],
-    dryRunOnly ? "DRY_RUN_ONLY" : "UNKNOWN"
+    dryRunOnly ? "DRY_RUN_ONLY" : "UNKNOWN",
   );
 
   const emergencyStop = getBoolean(
     config,
     ["emergency_stop", "emergencyStop"],
-    false
+    false,
   );
 
   const maxOrderUsdt = getNumber(
     config,
     ["max_order_usdt", "maxOrderUsdt", "max_order_size"],
-    100
+    100,
   );
 
   const maxRiskPercent = getNumber(
     config,
     ["max_risk_percent", "maxRiskPercent", "risk_percent"],
-    1
+    1,
   );
 
   const totalPnl = getNumber(performance, [
@@ -258,7 +257,7 @@ export default function SystemPage() {
     return clamp(
       normalizePercent(winRate) * 0.55 +
         Math.min(totalTrades, 25) +
-        (totalPnl > 0 ? 20 : 0)
+        (totalPnl > 0 ? 20 : 0),
     );
   }, [winRate, totalTrades, totalPnl]);
 
@@ -266,7 +265,7 @@ export default function SystemPage() {
     return clamp(
       normalizePercent(shadowWinRate) * 0.5 +
         Math.min(shadowTrades * 5, 30) +
-        (shadowPnl > 0 ? 20 : 0)
+        (shadowPnl > 0 ? 20 : 0),
     );
   }, [shadowWinRate, shadowTrades, shadowPnl]);
 
@@ -384,6 +383,11 @@ export default function SystemPage() {
         </Card>
       </div>
 
+      <div className="mb-6 grid gap-6 xl:grid-cols-2">
+        <ExecutionGatewayStatusCard />
+        <BinanceTestnetStatusCard />
+      </div>
+
       {error && (
         <div className="mb-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-5 py-4 text-sm text-amber-100">
           {error}
@@ -471,7 +475,7 @@ export default function SystemPage() {
               label="Risk Guardrails"
               value={`${formatAbsoluteMoney(maxOrderUsdt)} / ${formatPercent(
                 maxRiskPercent,
-                2
+                2,
               )}`}
               helper="Configured max order size and max risk percent."
               tone="info"
@@ -529,7 +533,7 @@ export default function SystemPage() {
               </p>
 
               <p className="mt-2 text-sm text-slate-400">
-                {formatPercent(winRate)} win rate ·{" "}
+                {formatPercent(winRate)} win rate Â·{" "}
                 {formatInteger(totalTrades)} trades
               </p>
             </div>
@@ -542,7 +546,7 @@ export default function SystemPage() {
               </p>
 
               <p className="mt-2 text-sm text-slate-400">
-                {formatPercent(shadowWinRate)} win rate ·{" "}
+                {formatPercent(shadowWinRate)} win rate Â·{" "}
                 {formatInteger(shadowTrades)} simulated trades
               </p>
             </div>
@@ -596,3 +600,5 @@ export default function SystemPage() {
     </PremiumPageShell>
   );
 }
+
+
