@@ -485,3 +485,10 @@ export async function evaluateStrategyPromotion(payload: Record<string, unknown>
     body: JSON.stringify(payload),
   });
 }
+
+export async function evaluateAllStrategyPromotions(payload: Record<string, unknown> = {}) {
+  return apiFetch("/strategy-promotion/evaluate-all", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
