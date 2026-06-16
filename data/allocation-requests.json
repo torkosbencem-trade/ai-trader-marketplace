@@ -1,0 +1,15 @@
+[
+  {
+    "id": "allocation-1781609669114",
+    "strategyId": "submission-1781609069912",
+    "strategyName": "Momentum Breakout Alpha V2",
+    "investorEmail": "investor@example.com",
+    "requestedCapital": 100000,
+    "riskAcknowledgement": true,
+    "timeHorizon": "6-12 months",
+    "notes": "",
+    "status": "Approved",
+    "createdAt": "2026-06-16T11:34:29.114Z",
+    "updatedAt": "2026-06-16T11:34:53.376Z"
+  }
+]

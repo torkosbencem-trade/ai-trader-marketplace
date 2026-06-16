@@ -1,0 +1,735 @@
+[
+  {
+    "id": "audit-1781610169299",
+    "createdAt": "2026-06-16T11:42:49.299Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Normal.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Normal",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:49.296Z"
+    }
+  },
+  {
+    "id": "audit-1781610169031",
+    "createdAt": "2026-06-16T11:42:49.031Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Paused.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Paused",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:49.030Z"
+    }
+  },
+  {
+    "id": "audit-1781610168795",
+    "createdAt": "2026-06-16T11:42:48.795Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Reduced.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Reduced",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:48.789Z"
+    }
+  },
+  {
+    "id": "audit-1781610168417",
+    "createdAt": "2026-06-16T11:42:48.417Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Normal.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Normal",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:48.415Z"
+    }
+  },
+  {
+    "id": "audit-1781610167777",
+    "createdAt": "2026-06-16T11:42:47.777Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Reduced.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Reduced",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:47.775Z"
+    }
+  },
+  {
+    "id": "audit-1781610166305",
+    "createdAt": "2026-06-16T11:42:46.305Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Paused.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Paused",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:46.302Z"
+    }
+  },
+  {
+    "id": "audit-1781610166043",
+    "createdAt": "2026-06-16T11:42:46.043Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Reduced.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Reduced",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:46.041Z"
+    }
+  },
+  {
+    "id": "audit-1781610165641",
+    "createdAt": "2026-06-16T11:42:45.641Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Normal.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Normal",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:45.639Z"
+    }
+  },
+  {
+    "id": "audit-1781610165048",
+    "createdAt": "2026-06-16T11:42:45.048Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Paused.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Paused",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:45.037Z"
+    }
+  },
+  {
+    "id": "audit-1781610163691",
+    "createdAt": "2026-06-16T11:42:43.691Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Reduced.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Reduced",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:42:43.689Z"
+    }
+  },
+  {
+    "id": "audit-1781610112303",
+    "createdAt": "2026-06-16T11:41:52.303Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Normal.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Normal",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:41:52.302Z"
+    }
+  },
+  {
+    "id": "audit-1781610111713",
+    "createdAt": "2026-06-16T11:41:51.713Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Reduced.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Reduced",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:41:51.693Z"
+    }
+  },
+  {
+    "id": "audit-1781610111168",
+    "createdAt": "2026-06-16T11:41:51.168Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Paused.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Paused",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:41:51.166Z"
+    }
+  },
+  {
+    "id": "audit-1781610110403",
+    "createdAt": "2026-06-16T11:41:50.403Z",
+    "type": "portfolio-risk-mode",
+    "title": "Portfolio risk mode changed",
+    "detail": "Portfolio risk mode changed to Reduced.",
+    "actor": "demo-investor",
+    "metadata": {
+      "portfolioId": "demo-investor-001",
+      "riskMode": "Reduced",
+      "requestedBy": "demo-investor",
+      "auditRequired": true,
+      "updatedAt": "2026-06-16T11:41:50.401Z"
+    }
+  },
+  {
+    "id": "audit-1781610094403",
+    "createdAt": "2026-06-16T11:41:34.403Z",
+    "type": "execution-deployment",
+    "title": "Deployment package prepared",
+    "detail": "Momentum Breakout Alpha V2 deployment package prepared for investor@example.com.",
+    "actor": "execution-system",
+    "metadata": {
+      "id": "deployment-1781610094398",
+      "allocationRequestId": "allocation-1781609669114",
+      "strategyId": "submission-1781609069912",
+      "strategyName": "Momentum Breakout Alpha V2",
+      "investorEmail": "investor@example.com",
+      "requestedCapital": 100000,
+      "broker": "Alpaca",
+      "deploymentMode": "Paper",
+      "riskState": "Passed",
+      "maxAllocation": 50000,
+      "maxDrawdown": 8,
+      "dailyLossLimit": 2.5,
+      "status": "Prepared",
+      "createdAt": "2026-06-16T11:41:34.398Z",
+      "updatedAt": null
+    }
+  },
+  {
+    "id": "audit-1781610094400",
+    "createdAt": "2026-06-16T11:41:34.400Z",
+    "type": "deployment-created",
+    "title": "Deployment saved",
+    "detail": "Momentum Breakout Alpha V2 deployment was saved as a portfolio allocation.",
+    "actor": "execution-system",
+    "metadata": {
+      "id": "deployment-1781610094398",
+      "allocationRequestId": "allocation-1781609669114",
+      "strategyId": "submission-1781609069912",
+      "strategyName": "Momentum Breakout Alpha V2",
+      "investorEmail": "investor@example.com",
+      "requestedCapital": 100000,
+      "broker": "Alpaca",
+      "deploymentMode": "Paper",
+      "riskState": "Passed",
+      "maxAllocation": 50000,
+      "maxDrawdown": 8,
+      "dailyLossLimit": 2.5,
+      "status": "Prepared",
+      "createdAt": "2026-06-16T11:41:34.398Z",
+      "updatedAt": null
+    }
+  },
+  {
+    "id": "audit-1781609929976",
+    "createdAt": "2026-06-16T11:38:49.976Z",
+    "type": "execution-deployment",
+    "title": "Deployment package prepared",
+    "detail": "Momentum Breakout Alpha V2 deployment package prepared for investor@example.com.",
+    "actor": "execution-system",
+    "metadata": {
+      "deploymentId": "deployment-1781609929975",
+      "allocationRequestId": "allocation-1781609669114",
+      "strategyId": "submission-1781609069912",
+      "strategyName": "Momentum Breakout Alpha V2",
+      "investorEmail": "investor@example.com",
+      "requestedCapital": 100000,
+      "broker": "Alpaca",
+      "deploymentMode": "Paper",
+      "riskState": "Passed",
+      "maxAllocation": 50000,
+      "maxDrawdown": 8,
+      "dailyLossLimit": 2.5,
+      "preparedAt": "2026-06-16T11:38:49.975Z"
+    }
+  },
+  {
+    "id": "audit-1781609693378",
+    "createdAt": "2026-06-16T11:34:53.378Z",
+    "type": "allocation-review",
+    "title": "Allocation request reviewed",
+    "detail": "Allocation request allocation-1781609669114 changed to Approved.",
+    "actor": "execution-reviewer",
+    "metadata": {
+      "allocationRequestId": "allocation-1781609669114",
+      "status": "Approved",
+      "reason": "Allocation request moved to Approved.",
+      "persisted": true,
+      "strategyId": "submission-1781609069912",
+      "strategyName": "Momentum Breakout Alpha V2",
+      "investorEmail": "investor@example.com",
+      "requestedCapital": 100000
+    }
+  },
+  {
+    "id": "audit-1781609669117",
+    "createdAt": "2026-06-16T11:34:29.117Z",
+    "type": "allocation-request",
+    "title": "Allocation access requested",
+    "detail": "investor@example.com requested allocation access for Momentum Breakout Alpha V2.",
+    "actor": "investor",
+    "metadata": {
+      "allocationRequestId": "allocation-1781609669114",
+      "strategyId": "submission-1781609069912",
+      "strategyName": "Momentum Breakout Alpha V2",
+      "requestedCapital": 100000,
+      "timeHorizon": "6-12 months",
+      "riskAcknowledgement": true,
+      "status": "Pending"
+    }
+  },
+  {
+    "id": "audit-1781609095768",
+    "createdAt": "2026-06-16T11:24:55.768Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781609069912 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781609069912",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781609069915",
+    "createdAt": "2026-06-16T11:24:29.915Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Momentum Breakout Alpha V2 was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781609069912",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "momentum-breakout-alpha-utf8.csv",
+      "parsedMetrics": {
+        "detectedRows": 20,
+        "trades": 20,
+        "winRate": 70,
+        "totalReturn": 17.4,
+        "averageReturn": 0.87,
+        "maxDrawdown": 0.9,
+        "sharpe": 2.67,
+        "parserMode": "csv",
+        "equitySeries": [
+          100,
+          101.4,
+          100.89,
+          103.11,
+          104.04,
+          103.21,
+          104.96,
+          105.59,
+          105.17,
+          107.9,
+          109.2,
+          108.44,
+          110.5,
+          111.38,
+          113.05,
+          112.37,
+          114.73,
+          115.53,
+          117.04,
+          115.98,
+          118.77
+        ],
+        "drawdownSeries": [
+          0,
+          0,
+          -0.5,
+          0,
+          0,
+          -0.8,
+          0,
+          0,
+          -0.4,
+          0,
+          0,
+          -0.7,
+          0,
+          0,
+          0,
+          -0.6,
+          0,
+          0,
+          0,
+          -0.9,
+          0
+        ]
+      }
+    }
+  },
+  {
+    "id": "audit-1781608884700",
+    "createdAt": "2026-06-16T11:21:24.700Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781608802686 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781608802686",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781608802689",
+    "createdAt": "2026-06-16T11:20:02.689Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Momentum Breakout Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781608802686",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "momentum-breakout-alpha-utf8.csv",
+      "parsedMetrics": {
+        "detectedRows": 20,
+        "trades": 20,
+        "winRate": 70,
+        "totalReturn": 17.4,
+        "averageReturn": 0.87,
+        "maxDrawdown": 0.9,
+        "sharpe": 2.67,
+        "parserMode": "csv"
+      }
+    }
+  },
+  {
+    "id": "audit-1781608657061",
+    "createdAt": "2026-06-16T11:17:37.061Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Parser Direct Test was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781608657058",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "parser-direct-test.csv",
+      "parsedMetrics": {
+        "detectedRows": 20,
+        "trades": 20,
+        "winRate": 70,
+        "totalReturn": 17.4,
+        "averageReturn": 0.87,
+        "maxDrawdown": 0.9,
+        "sharpe": 2.67,
+        "parserMode": "csv"
+      }
+    }
+  },
+  {
+    "id": "audit-1781608580959",
+    "createdAt": "2026-06-16T11:16:20.959Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Momentum Breakout Alpha UTF8 was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781608580957",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "momentum-breakout-alpha-utf8.csv",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781608482972",
+    "createdAt": "2026-06-16T11:14:42.972Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781608426989 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781608426989",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781608426992",
+    "createdAt": "2026-06-16T11:13:46.992Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Momentum Breakout Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781608426989",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "momentum-breakout-alpha.csv",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781608290841",
+    "createdAt": "2026-06-16T11:11:30.841Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781608170999 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781608170999",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781608171002",
+    "createdAt": "2026-06-16T11:09:31.002Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Test was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781608170999",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "sample-backtest.csv",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781607981596",
+    "createdAt": "2026-06-16T11:06:21.596Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781607981594",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "sample-backtest.csv",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781607874611",
+    "createdAt": "2026-06-16T11:04:34.611Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781607874609",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "sample-backtest.csv",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781607862397",
+    "createdAt": "2026-06-16T11:04:22.397Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781607862395",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781607691866",
+    "createdAt": "2026-06-16T11:01:31.866Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781607691863",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h",
+      "fileName": "strategy_promotion_gate.py",
+      "parsedMetrics": null
+    }
+  },
+  {
+    "id": "audit-1781607330755",
+    "createdAt": "2026-06-16T10:55:30.755Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission institutional-momentum-alpha changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "institutional-momentum-alpha",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": false
+    }
+  },
+  {
+    "id": "audit-1781607316153",
+    "createdAt": "2026-06-16T10:55:16.153Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781607210615 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781607210615",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781607315498",
+    "createdAt": "2026-06-16T10:55:15.498Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781607210615 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781607210615",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781607311562",
+    "createdAt": "2026-06-16T10:55:11.562Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781607210615 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781607210615",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781607279942",
+    "createdAt": "2026-06-16T10:54:39.942Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission submission-1781607210615 changed to Approved.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "submission-1781607210615",
+      "status": "Approved",
+      "reason": "Admin changed status to Approved.",
+      "persisted": true
+    }
+  },
+  {
+    "id": "audit-1781607210618",
+    "createdAt": "2026-06-16T10:53:30.618Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781607210615",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h"
+    }
+  },
+  {
+    "id": "audit-1781607028682",
+    "createdAt": "2026-06-16T10:50:28.682Z",
+    "type": "admin-review",
+    "title": "Submission status changed",
+    "detail": "Submission institutional-momentum-alpha changed to Rejected.",
+    "actor": "demo-admin",
+    "metadata": {
+      "submissionId": "institutional-momentum-alpha",
+      "status": "Rejected",
+      "reason": "Admin changed status to Rejected.",
+      "persisted": false
+    }
+  },
+  {
+    "id": "audit-1781607006858",
+    "createdAt": "2026-06-16T10:50:06.858Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781607006855",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h"
+    }
+  },
+  {
+    "id": "audit-1781606593361",
+    "createdAt": "2026-06-16T10:43:13.361Z",
+    "type": "strategy-submission",
+    "title": "Strategy submitted",
+    "detail": "Institutional Momentum Alpha was submitted for admin review.",
+    "actor": "strategy-creator",
+    "metadata": {
+      "submissionId": "submission-1781606593357",
+      "status": "Pending",
+      "assetClass": "Crypto",
+      "timeframe": "1h"
+    }
+  }
+]

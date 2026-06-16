@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   evaluateAllStrategyPromotions,
@@ -9,838 +9,683 @@ import {
 import {
   Card,
   CardHeader,
+  EmptyState,
+  Field,
   JsonPreview,
+  MetricCard,
   PageHero,
   PremiumPageShell,
+  SafetyNotice,
+  ScoreBar,
+  SecondaryLink,
+  SectionLabel,
   StatusPill,
+  inputClassName,
   type Tone,
 } from "@/components/ui/PremiumUI";
 
 type AnyRecord = Record<string, unknown>;
 
-function isObject(value: unknown): value is AnyRecord {
+type PromotionFormState = {
+  strategy_id: string;
+  strategy_name: string;
+  symbol: string;
+  total_trades: string;
+  win_rate: string;
+  max_drawdown: string;
+  profit_factor: string;
+  sharpe_ratio: string;
+  validation_days: string;
+  live_order_sent: string;
+};
+
+const defaultForm: PromotionFormState = {
+  strategy_id: "btc-momentum-validation",
+  strategy_name: "BTC Momentum Validation",
+  symbol: "BTCUSDT",
+  total_trades: "75",
+  win_rate: "58",
+  max_drawdown: "8",
+  profit_factor: "1.45",
+  sharpe_ratio: "1.2",
+  validation_days: "21",
+  live_order_sent: "false",
+};
+
+function isRecord(value: unknown): value is AnyRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function getString(data: unknown, key: string, fallback = "—") {
-  if (!isObject(data)) return fallback;
+function getValue(source: unknown, keys: string[], fallback = "—") {
+  if (!isRecord(source)) return fallback;
 
-  const value = data[key];
+  for (const key of keys) {
+    const value = source[key];
 
-  return typeof value === "string" && value.trim() ? value : fallback;
-}
-
-function getNumber(data: unknown, key: string, fallback = 0) {
-  if (!isObject(data)) return fallback;
-
-  const value = data[key];
-
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === "boolean") return value ? "true" : "false";
   }
 
   return fallback;
 }
 
-function getBoolean(data: unknown, key: string, fallback = false) {
-  if (!isObject(data)) return fallback;
+function getNumber(source: unknown, keys: string[], fallback = 0) {
+  if (!isRecord(source)) return fallback;
 
-  const value = data[key];
+  for (const key of keys) {
+    const value = source[key];
 
-  if (value === true) return true;
-  if (value === false) return false;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
 
   return fallback;
 }
 
-function getStringArray(data: unknown, key: string) {
-  if (!isObject(data)) return [];
+function getBoolean(source: unknown, keys: string[], fallback = false) {
+  if (!isRecord(source)) return fallback;
 
-  const value = data[key];
+  for (const key of keys) {
+    const value = source[key];
 
-  return Array.isArray(value) ? value.map((item) => String(item)) : [];
+    if (typeof value === "boolean") return value;
+
+    if (typeof value === "string") {
+      const normalized = value.toLowerCase();
+      if (normalized === "true") return true;
+      if (normalized === "false") return false;
+    }
+  }
+
+  return fallback;
 }
 
-function getChecks(data: unknown): Record<string, boolean> {
-  if (!isObject(data)) return {};
+function getArray(source: unknown, keys: string[]) {
+  if (!isRecord(source)) return [];
 
-  const checks = data.checks;
+  for (const key of keys) {
+    const value = source[key];
+    if (Array.isArray(value)) return value;
+  }
 
-  if (!isObject(checks)) return {};
-
-  return Object.fromEntries(
-    Object.entries(checks).map(([key, value]) => [key, value === true]),
-  );
+  return [];
 }
 
-function getRecordArray(data: unknown, key: string): AnyRecord[] {
-  if (!isObject(data)) return [];
-
-  const value = data[key];
-
-  if (!Array.isArray(value)) return [];
-
-  return value.filter(isObject);
+function parseNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getPromotionTone(status: string): Tone {
-  if (status === "ready_for_testnet_review") return "success";
-  if (status === "ready_for_shadow_live") return "warning";
-  if (status === "blocked") return "danger";
-
-  return "info";
+function formatNumber(value: number) {
+  return value.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
 }
 
-function getRiskTierTone(riskTier: string): Tone {
-  if (riskTier === "standard_testnet") return "success";
-  if (riskTier === "conservative_testnet") return "warning";
-  if (riskTier === "shadow_only") return "warning";
-  if (riskTier === "blocked") return "danger";
-
-  return "info";
+function formatPercent(value: number) {
+  return `${formatNumber(value)}%`;
 }
 
-function formatCheckLabel(value: string) {
-  return value
-    .replaceAll("_", " ")
-    .replace("minimum trades 30", "Minimum 30 trades")
-    .replace("win rate at least 45", "Win rate ≥ 45%")
-    .replace("profit factor at least 1 2", "Profit factor ≥ 1.2")
-    .replace("max drawdown under 15", "Max drawdown < 15%")
-    .replace("positive total pnl", "Positive PnL")
-    .replace("dry run only", "Dry-run only")
-    .replace("no real orders sent", "No real orders")
-    .replace("dry run gateway", "Dry-run gateway")
-    .replace("gateway available", "Gateway available")
-    .replace("audit logging", "Audit logging");
+function getScoreTone(score: number): Tone {
+  if (score >= 75) return "success";
+  if (score >= 50) return "warning";
+  if (score > 0) return "danger";
+  return "neutral";
 }
 
-const inputClassName =
-  "w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 focus:bg-sky-400/5";
+function getEligibilityTone(eligible: boolean): Tone {
+  return eligible ? "success" : "warning";
+}
 
-const labelClassName =
-  "text-xs font-bold uppercase tracking-[0.16em] text-slate-500";
+function toPayload(form: PromotionFormState) {
+  const totalTrades = parseNumber(form.total_trades);
+  const winRate = parseNumber(form.win_rate);
+  const maxDrawdown = parseNumber(form.max_drawdown);
+  const profitFactor = parseNumber(form.profit_factor);
+  const sharpeRatio = parseNumber(form.sharpe_ratio);
+  const validationDays = parseNumber(form.validation_days);
 
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-  step,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  step?: string;
-}) {
-  return (
-    <label className="block space-y-2">
-      <span className={labelClassName}>{label}</span>
-      <input
-        className={inputClassName}
-        type={type}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+  return {
+    strategy_id: form.strategy_id.trim(),
+    strategy_name: form.strategy_name.trim(),
+    symbol: form.symbol.trim().toUpperCase(),
+    total_trades: totalTrades ?? 0,
+    win_rate: winRate ?? 0,
+    max_drawdown: maxDrawdown ?? 0,
+    profit_factor: profitFactor ?? 0,
+    sharpe_ratio: sharpeRatio ?? 0,
+    validation_days: validationDays ?? 0,
+
+    real_order_sent: form.live_order_sent === "true",
+    network_request_sent: false,
+    binance_order_sent: false,
+    order_network_request_sent: false,
+  };
+}
+
+function BlockedReasonList({ result }: { result: unknown }) {
+  const blockedReasons = getArray(result, ["blocked_reasons", "reasons"]);
+  const warnings = getArray(result, ["warnings"]);
+
+  if (blockedReasons.length === 0 && warnings.length === 0) {
+    return (
+      <EmptyState
+        title="No blockers reported"
+        description="The latest evaluation did not return blocked reasons or warnings."
+        label="Clean"
+        tone="success"
       />
-    </label>
-  );
-}
+    );
+  }
 
-function DecisionBadge({
-  label,
-  active,
-}: {
-  label: string;
-  active: boolean;
-}) {
   return (
-    <div
-      className={`rounded-2xl border px-4 py-3 ${
-        active
-          ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
-          : "border-amber-400/25 bg-amber-400/10 text-amber-100"
-      }`}
-    >
-      <p className="text-xs font-bold uppercase tracking-[0.16em] opacity-70">
-        {label}
-      </p>
-      <p className="mt-1 text-lg font-black">{active ? "Approved" : "Hold"}</p>
+    <div className="space-y-3">
+      {blockedReasons.map((reason, index) => (
+        <div
+          key={`blocked-${index}`}
+          className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-200"
+        >
+          {String(reason)}
+        </div>
+      ))}
+
+      {warnings.map((warning, index) => (
+        <div
+          key={`warning-${index}`}
+          className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-200"
+        >
+          {String(warning)}
+        </div>
+      ))}
     </div>
   );
 }
 
 export default function PromotionPage() {
-  const [strategyId, setStrategyId] = useState("trend-pulse-ai");
-  const [strategyName, setStrategyName] = useState("Trend Pulse AI");
-  const [totalTrades, setTotalTrades] = useState("75");
-  const [winRate, setWinRate] = useState("54");
-  const [profitFactor, setProfitFactor] = useState("1.45");
-  const [maxDrawdown, setMaxDrawdown] = useState("9.5");
-  const [totalPnl, setTotalPnl] = useState("320");
-
-  const [result, setResult] = useState<unknown>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<PromotionFormState>(defaultForm);
+  const [singleResult, setSingleResult] = useState<unknown>(null);
+  const [batchResult, setBatchResult] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
+  const [evaluatingSingle, setEvaluatingSingle] = useState(false);
+  const [evaluatingAll, setEvaluatingAll] = useState(false);
 
-  const [portfolioResult, setPortfolioResult] = useState<unknown>(null);
-  const [portfolioLoading, setPortfolioLoading] = useState(false);
-  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const payload = useMemo(() => toPayload(form), [form]);
 
-  const hasResult = result !== null;
+  const strategyInvalid = !form.strategy_id.trim();
+  const tradesInvalid = parseNumber(form.total_trades) === null;
+  const winRateInvalid = parseNumber(form.win_rate) === null;
+  const drawdownInvalid = parseNumber(form.max_drawdown) === null;
 
-  const promotionScore = hasResult
-    ? getNumber(result, "promotion_score", 0)
-    : 0;
-
-  const promotionScoreLabel = hasResult ? String(promotionScore) : "—";
-
-  const status = getString(result, "status", "not_evaluated");
-
-  const recommendedNextStep = getString(
-    result,
-    "recommended_next_step",
-    "Run an evaluation to generate a promotion decision.",
+  const promotionScore = getNumber(singleResult, ["promotion_score", "score"], 0);
+  const eligibleForShadowLive = getBoolean(
+    singleResult,
+    ["eligible_for_shadow_live"],
+    false,
   );
-
-  const riskTier = getString(result, "risk_tier", "not_evaluated");
-  const suggestedMaxTestnetOrderUsdt = getNumber(
-    result,
-    "suggested_max_testnet_order_usdt",
-    0,
+  const eligibleForTestnet = getBoolean(
+    singleResult,
+    ["eligible_for_testnet"],
+    false,
   );
+  const riskTier = getValue(singleResult, ["risk_tier", "risk"], "Not evaluated");
+  const status = getValue(singleResult, ["status"], "Not evaluated");
   const requiredAdditionalTrades = getNumber(
-    result,
-    "required_additional_trades",
+    singleResult,
+    ["required_additional_trades"],
     0,
   );
-  const suggestedValidationDays = getNumber(
-    result,
-    "suggested_validation_days",
-    0,
-  );
-  const promotionSummary = getString(
-    result,
-    "promotion_summary",
-    "Run an evaluation to generate a risk recommendation.",
-  );
 
-  const eligibleForShadowLive = getBoolean(result, "eligible_for_shadow_live");
-  const eligibleForTestnet = getBoolean(result, "eligible_for_testnet");
-  const blockedReasons = getStringArray(result, "blocked_reasons");
-  const warnings = getStringArray(result, "warnings");
-  const checks = getChecks(result);
-  const passedChecks = Object.values(checks).filter(Boolean).length;
-  const totalChecks = Object.keys(checks).length;
-
-  const portfolioResults = getRecordArray(portfolioResult, "results");
-  const totalStrategies = getNumber(portfolioResult, "total_strategies", 0);
-  const averagePromotionScore = getNumber(
-    portfolioResult,
-    "average_promotion_score",
-    0,
-  );
-  const testnetReadyCount = getNumber(portfolioResult, "testnet_ready_count", 0);
-  const shadowReadyCount = getNumber(portfolioResult, "shadow_ready_count", 0);
-  const blockedCount = getNumber(portfolioResult, "blocked_count", 0);
-
-  const scoreTone: Tone =
-    promotionScore >= 80 ? "success" : promotionScore >= 50 ? "warning" : "danger";
-
-  async function loadPortfolioPromotion() {
-    setPortfolioLoading(true);
-    setPortfolioError(null);
-
-    try {
-      const response = await evaluateAllStrategyPromotions({});
-      setPortfolioResult(response);
-    } catch (err) {
-      setPortfolioError(
-        err instanceof Error
-          ? err.message
-          : "Portfolio promotion overview failed.",
-      );
-    } finally {
-      setPortfolioLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadPortfolioPromotion();
-  }, []);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    setSubmitting(true);
+  async function handleEvaluateSingle() {
+    setEvaluatingSingle(true);
     setError(null);
 
     try {
-      const payload = {
-        strategy_id: strategyId,
-        strategy_name: strategyName,
-        total_trades: Number(totalTrades),
-        win_rate: Number(winRate),
-        profit_factor: Number(profitFactor),
-        max_drawdown_percent: Number(maxDrawdown),
-        total_pnl: Number(totalPnl),
-        dry_run_only: true,
-        real_order_sent: false,
-        gateway: "DRY_RUN_EXCHANGE_GATEWAY",
-        gateway_available: true,
-        audit_logging: true,
-      };
-
       const response = await evaluateStrategyPromotion(payload);
-      setResult(response);
+      setSingleResult(response);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Promotion evaluation failed.",
+        err instanceof Error
+          ? err.message
+          : "Strategy promotion evaluation failed.",
       );
     } finally {
-      setSubmitting(false);
+      setEvaluatingSingle(false);
+    }
+  }
+
+  async function handleEvaluateAll() {
+    setEvaluatingAll(true);
+    setError(null);
+
+    try {
+      const response = await evaluateAllStrategyPromotions({});
+      setBatchResult(response);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Batch promotion evaluation failed.",
+      );
+    } finally {
+      setEvaluatingAll(false);
     }
   }
 
   return (
     <PremiumPageShell>
-      <PageHero
-        pills={[
-          { label: "Promotion Engine", tone: "info" },
-          { label: "Dry-Run Protected", tone: "success" },
-          {
-            label: eligibleForTestnet ? "Testnet Review Ready" : "Mainnet Blocked",
-            tone: eligibleForTestnet ? "success" : "warning",
-          },
-        ]}
-        title="Strategy Promotion Gate"
-        description="A decision cockpit for validating whether a strategy can move from observation into shadow-live or Binance Testnet review."
-      />
+      <div className="space-y-8">
+        <PageHero
+          pills={[
+            { label: "Promotion Gate", tone: "info" },
+            { label: "Manual Review Required", tone: "warning" },
+            { label: "No Auto Execution", tone: "success" },
+            { label: "Mainnet Locked", tone: "danger" },
+          ]}
+          title="Strategy Promotion Gate"
+          description="Controlled evaluation surface for deciding whether a strategy is eligible for shadow-live or testnet validation. Promotion output is advisory and must not bypass execution safety."
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={handleEvaluateAll}
+                disabled={evaluatingAll}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {evaluatingAll ? "Evaluating..." : "Evaluate All"}
+              </button>
 
-      {error ? (
-        <div className="rounded-3xl border border-rose-400/20 bg-rose-500/10 p-5 text-sm text-rose-100">
-          {error}
-        </div>
-      ) : null}
-
-      <Card>
-        <CardHeader
-          eyebrow="Portfolio"
-          title="Portfolio Promotion Overview"
-          description="Batch evaluation across multiple strategies. This shows which strategies are blocked, shadow-live ready, or testnet-review ready."
-          action={
-            <StatusPill
-              label={portfolioLoading ? "Loading" : "Batch Gate"}
-              tone={portfolioLoading ? "warning" : "success"}
-            />
+              <SecondaryLink href="/promotion-audit" tone="neutral">
+                Promotion Audit
+              </SecondaryLink>
+            </>
           }
         />
 
-        <div className="space-y-6 p-6">
-          {portfolioError ? (
-            <div className="rounded-3xl border border-rose-400/20 bg-rose-500/10 p-5 text-sm text-rose-100">
-              {portfolioError}
-            </div>
-          ) : null}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Promotion Score"
+            value={promotionScore > 0 ? formatNumber(promotionScore) : "—"}
+            helper="Latest single strategy evaluation score."
+            tone={getScoreTone(promotionScore)}
+          />
 
-          <div className="grid gap-3 md:grid-cols-5">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-xs text-slate-500">Strategies</p>
-              <p className="mt-1 text-2xl font-black text-white">
-                {totalStrategies}
-              </p>
-            </div>
+          <MetricCard
+            label="Shadow Live"
+            value={eligibleForShadowLive ? "Eligible" : "Review"}
+            helper="Eligibility returned by the promotion gate."
+            tone={getEligibilityTone(eligibleForShadowLive)}
+          />
 
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-xs text-slate-500">Avg Score</p>
-              <p className="mt-1 text-2xl font-black text-white">
-                {averagePromotionScore}%
-              </p>
-            </div>
+          <MetricCard
+            label="Testnet"
+            value={eligibleForTestnet ? "Eligible" : "Review"}
+            helper="Testnet progression remains separate from live trading."
+            tone={getEligibilityTone(eligibleForTestnet)}
+          />
 
-            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-              <p className="text-xs text-emerald-100/70">Testnet Ready</p>
-              <p className="mt-1 text-2xl font-black text-emerald-100">
-                {testnetReadyCount}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
-              <p className="text-xs text-amber-100/70">Shadow Ready</p>
-              <p className="mt-1 text-2xl font-black text-amber-100">
-                {shadowReadyCount}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4">
-              <p className="text-xs text-rose-100/70">Blocked</p>
-              <p className="mt-1 text-2xl font-black text-rose-100">
-                {blockedCount}
-              </p>
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-3xl border border-white/10">
-            <div className="grid grid-cols-[1.4fr_0.6fr_0.8fr_0.8fr_0.8fr] gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-              <span>Strategy</span>
-              <span>Score</span>
-              <span>Status</span>
-              <span>Risk Tier</span>
-              <span>Next Gate</span>
-            </div>
-
-            {portfolioResults.length > 0 ? (
-              <div className="divide-y divide-white/10">
-                {portfolioResults.map((item) => {
-                  const itemId = getString(item, "strategy_id");
-                  const itemName = getString(item, "strategy_name");
-                  const itemStatus = getString(item, "status");
-                  const itemScore = getNumber(item, "promotion_score", 0);
-                  const itemRiskTier = getString(item, "risk_tier");
-                  const itemTestnet = getBoolean(item, "eligible_for_testnet");
-                  const itemShadow = getBoolean(
-                    item,
-                    "eligible_for_shadow_live",
-                  );
-
-                  return (
-                    <div
-                      key={itemId}
-                      className="grid grid-cols-[1.4fr_0.6fr_0.8fr_0.8fr_0.8fr] items-center gap-3 px-4 py-4"
-                    >
-                      <div>
-                        <p className="font-bold text-white">{itemName}</p>
-                        <p className="mt-1 text-xs text-slate-500">{itemId}</p>
-                      </div>
-
-                      <p className="text-sm font-black text-white">
-                        {itemScore}%
-                      </p>
-
-                      <StatusPill
-                        label={itemStatus}
-                        tone={getPromotionTone(itemStatus)}
-                      />
-
-                      <StatusPill
-                        label={itemRiskTier}
-                        tone={getRiskTierTone(itemRiskTier)}
-                      />
-
-                      <StatusPill
-                        label={
-                          itemTestnet
-                            ? "Testnet Review"
-                            : itemShadow
-                              ? "Shadow Live"
-                              : "Blocked"
-                        }
-                        tone={
-                          itemTestnet
-                            ? "success"
-                            : itemShadow
-                              ? "warning"
-                              : "danger"
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-6 text-sm text-slate-400">
-                No portfolio promotion data loaded yet.
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={loadPortfolioPromotion}
-            disabled={portfolioLoading}
-            className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500"
-          >
-            {portfolioLoading ? "Refreshing..." : "Refresh Portfolio Overview"}
-          </button>
+          <MetricCard
+            label="Risk Tier"
+            value={riskTier}
+            helper={`Current evaluation status: ${status}`}
+            tone={riskTier.toLowerCase().includes("high") ? "danger" : "neutral"}
+          />
         </div>
-      </Card>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_1.25fr]">
-        <Card>
-          <CardHeader
-            eyebrow="Decision"
-            title="Promotion Verdict"
-            description="The gate checks performance, drawdown, execution safety, and audit readiness."
-            action={<StatusPill label={status} tone={scoreTone} />}
-          />
+        <SafetyNotice
+          title="Promotion is not execution approval"
+          tone="warning"
+          description="A promoted strategy may become eligible for deeper validation, but this does not enable real exchange order routing. Mainnet remains locked, and every candidate still requires protected dry-run and audit review."
+        />
 
-          <div className="space-y-6 p-6">
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-black p-6">
-              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
-              <div className="absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-emerald-500/10 blur-3xl" />
+        {error ? (
+          <Card className="p-5 sm:p-6">
+            <EmptyState
+              title="Promotion evaluation failed"
+              description={error}
+              label="Error"
+              tone="danger"
+            />
+          </Card>
+        ) : null}
 
-              <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                    Current Strategy
-                  </p>
+        <div className="grid gap-6 xl:grid-cols-[480px_1fr]">
+          <Card>
+            <CardHeader
+              eyebrow="Single Evaluation"
+              title="Strategy candidate"
+              description="Edit the candidate metrics and run a controlled promotion evaluation."
+            />
 
-                  <h2 className="mt-2 text-2xl font-black text-white">
-                    {strategyName}
-                  </h2>
+            <div className="space-y-5 p-5 sm:p-6">
+              <Field label="Strategy ID" helper="Stable internal strategy identifier.">
+                <input
+                  className={inputClassName(strategyInvalid)}
+                  value={form.strategy_id}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      strategy_id: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
 
-                  <p className="mt-2 text-sm text-slate-400">{strategyId}</p>
+              <Field label="Strategy Name">
+                <input
+                  className={inputClassName()}
+                  value={form.strategy_name}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      strategy_name: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
 
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <StatusPill
-                      label={
-                        eligibleForShadowLive
-                          ? "Shadow Live Ready"
-                          : "Shadow Hold"
-                      }
-                      tone={eligibleForShadowLive ? "success" : "warning"}
-                    />
+              <Field label="Symbol">
+                <input
+                  className={inputClassName()}
+                  value={form.symbol}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      symbol: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
 
-                    <StatusPill
-                      label={
-                        eligibleForTestnet
-                          ? "Testnet Review Ready"
-                          : "Testnet Hold"
-                      }
-                      tone={eligibleForTestnet ? "success" : "warning"}
-                    />
-
-                    <StatusPill label="Mainnet Disabled" tone="danger" />
-                  </div>
-                </div>
-
-                <div
-                  className="grid h-36 w-36 shrink-0 place-items-center rounded-full p-2 md:h-40 md:w-40"
-                  style={{
-                    background: hasResult
-                      ? `conic-gradient(rgb(56 189 248) ${
-                          promotionScore * 3.6
-                        }deg, rgba(255,255,255,0.08) 0deg)`
-                      : "linear-gradient(135deg, rgba(148,163,184,0.18), rgba(15,23,42,0.92))",
-                  }}
-                >
-                  <div className="grid h-full w-full place-items-center rounded-full border border-white/10 bg-slate-950 text-center shadow-2xl shadow-black/40">
-                    <div>
-                      <p className="text-4xl font-black text-white md:text-5xl">
-                        {promotionScoreLabel}
-                      </p>
-
-                      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                        {hasResult ? "Score" : "Pending"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <DecisionBadge
-                label="Shadow Live"
-                active={eligibleForShadowLive}
-              />
-
-              <DecisionBadge
-                label="Testnet Review"
-                active={eligibleForTestnet}
-              />
-            </div>
-
-                        <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-sky-400/20 bg-sky-400/10 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-100/70">
-                  Risk Tier
-                </p>
-                <div className="mt-3">
-                  <StatusPill label={riskTier} tone={getRiskTierTone(riskTier)} />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">Max Testnet Order</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  ${suggestedMaxTestnetOrderUsdt}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">More Trades Needed</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {requiredAdditionalTrades}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">Validation Days</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {suggestedValidationDays}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Promotion Summary
-              </p>
-
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                {promotionSummary}
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Recommended Next Step
-              </p>
-
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                {recommendedNextStep}
-              </p>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">Trades</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {totalTrades}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">Win Rate</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {winRate}%
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">Profit Factor</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {profitFactor}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs text-slate-500">Drawdown</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {maxDrawdown}%
-                </p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader
-            eyebrow="Input"
-            title="Strategy Metrics"
-            description="Enter validation metrics. Execution safety values remain locked to dry-run mode."
-            action={
-              <StatusPill
-                label={submitting ? "Evaluating" : "Ready"}
-                tone={submitting ? "warning" : "success"}
-              />
-            }
-          />
-
-          <form onSubmit={handleSubmit} className="space-y-6 p-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Strategy ID"
-                value={strategyId}
-                onChange={setStrategyId}
-              />
-
-              <Field
-                label="Strategy Name"
-                value={strategyName}
-                onChange={setStrategyName}
-              />
-
-              <Field
-                label="Total Trades"
-                value={totalTrades}
-                onChange={setTotalTrades}
-                type="number"
-              />
-
-              <Field
-                label="Win Rate %"
-                value={winRate}
-                onChange={setWinRate}
-                type="number"
-                step="0.1"
-              />
-
-              <Field
-                label="Profit Factor"
-                value={profitFactor}
-                onChange={setProfitFactor}
-                type="number"
-                step="0.01"
-              />
-
-              <Field
-                label="Max Drawdown %"
-                value={maxDrawdown}
-                onChange={setMaxDrawdown}
-                type="number"
-                step="0.1"
-              />
-
-              <Field
-                label="Total PnL"
-                value={totalPnl}
-                onChange={setTotalPnl}
-                type="number"
-                step="1"
-              />
-            </div>
-
-            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5">
-              <p className="text-sm font-bold text-emerald-100">
-                Safety lock active
-              </p>
-
-              <p className="mt-2 text-sm leading-6 text-emerald-100/75">
-                dry_run_only=true, gateway=DRY_RUN_EXCHANGE_GATEWAY,
-                real_order_sent=false, audit_logging=true.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-            >
-              {submitting ? "Evaluating Strategy..." : "Evaluate Promotion"}
-            </button>
-          </form>
-        </Card>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card>
-          <CardHeader
-            eyebrow="Validation"
-            title="Promotion Checks"
-            description={
-              totalChecks
-                ? `${passedChecks}/${totalChecks} checks passed.`
-                : "Run an evaluation to see all checks."
-            }
-          />
-
-          <div className="grid gap-3 p-6 md:grid-cols-2">
-            {Object.entries(checks).length > 0 ? (
-              Object.entries(checks).map(([key, passed]) => (
-                <div
-                  key={key}
-                  className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 ${
-                    passed
-                      ? "border-emerald-400/20 bg-emerald-400/10"
-                      : "border-rose-400/20 bg-rose-500/10"
-                  }`}
-                >
-                  <span className="text-sm font-medium text-slate-200">
-                    {formatCheckLabel(key)}
-                  </span>
-
-                  <StatusPill
-                    label={passed ? "PASS" : "FAIL"}
-                    tone={passed ? "success" : "danger"}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Total Trades">
+                  <input
+                    className={inputClassName(tradesInvalid)}
+                    value={form.total_trades}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        total_trades: event.target.value,
+                      }))
+                    }
+                    inputMode="numeric"
                   />
+                </Field>
+
+                <Field label="Win Rate">
+                  <input
+                    className={inputClassName(winRateInvalid)}
+                    value={form.win_rate}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        win_rate: event.target.value,
+                      }))
+                    }
+                    inputMode="decimal"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Max Drawdown">
+                  <input
+                    className={inputClassName(drawdownInvalid)}
+                    value={form.max_drawdown}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        max_drawdown: event.target.value,
+                      }))
+                    }
+                    inputMode="decimal"
+                  />
+                </Field>
+
+                <Field label="Profit Factor">
+                  <input
+                    className={inputClassName()}
+                    value={form.profit_factor}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        profit_factor: event.target.value,
+                      }))
+                    }
+                    inputMode="decimal"
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Sharpe Ratio">
+                  <input
+                    className={inputClassName()}
+                    value={form.sharpe_ratio}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        sharpe_ratio: event.target.value,
+                      }))
+                    }
+                    inputMode="decimal"
+                  />
+                </Field>
+
+                <Field label="Validation Days">
+                  <input
+                    className={inputClassName()}
+                    value={form.validation_days}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        validation_days: event.target.value,
+                      }))
+                    }
+                    inputMode="numeric"
+                  />
+                </Field>
+              </div>
+
+              <Field
+                label="Live Order Sent"
+                helper="This must stay false for safe promotion evaluation."
+              >
+                <select
+                  className={inputClassName(form.live_order_sent === "true")}
+                  value={form.live_order_sent}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      live_order_sent: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="false">False</option>
+                  <option value="true">True - unsafe test state</option>
+                </select>
+              </Field>
+
+              <button
+                type="button"
+                onClick={handleEvaluateSingle}
+                disabled={
+                  evaluatingSingle ||
+                  strategyInvalid ||
+                  tradesInvalid ||
+                  winRateInvalid ||
+                  drawdownInvalid
+                }
+                className="inline-flex w-full items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {evaluatingSingle ? "Evaluating..." : "Evaluate Strategy"}
+              </button>
+            </div>
+          </Card>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader
+                eyebrow="Result"
+                title="Promotion decision"
+                description="Latest strategy promotion output from the backend."
+              />
+
+              <div className="grid gap-4 p-5 sm:p-6 md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
+                  <StatusPill
+                    label={status}
+                    tone={getStatusToneFromResult(status, promotionScore)}
+                  />
+                  <p className="mt-4 text-sm font-semibold text-slate-100">
+                    Evaluation status
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Recommended next step:{" "}
+                    {getValue(singleResult, ["recommended_next_step"], "—")}
+                  </p>
                 </div>
-              ))
-            ) : (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400 md:col-span-2">
-                No evaluation yet.
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
+                  <StatusPill
+                    label={`${formatNumber(requiredAdditionalTrades)} more trades`}
+                    tone={requiredAdditionalTrades > 0 ? "warning" : "success"}
+                  />
+                  <p className="mt-4 text-sm font-semibold text-slate-100">
+                    Additional validation
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Suggested validation days:{" "}
+                    {getValue(singleResult, ["suggested_validation_days"], "—")}
+                  </p>
+                </div>
               </div>
-            )}
+            </Card>
+
+            <Card className="p-5 sm:p-6">
+              <SectionLabel>Promotion Readiness</SectionLabel>
+
+              <div className="mt-5 space-y-4">
+                <ScoreBar
+                  label="Promotion Score"
+                  value={Math.max(0, Math.min(100, promotionScore))}
+                  tone={getScoreTone(promotionScore)}
+                  helper="Returned by the strategy promotion gate."
+                />
+
+                <ScoreBar
+                  label="Shadow-live Readiness"
+                  value={eligibleForShadowLive ? 85 : 35}
+                  tone={eligibleForShadowLive ? "success" : "warning"}
+                  helper="Eligibility does not bypass manual review."
+                />
+
+                <ScoreBar
+                  label="Live Execution Approval"
+                  value={0}
+                  tone="danger"
+                  helper="Promotion does not approve mainnet order routing."
+                />
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader
+                eyebrow="Blockers"
+                title="Blocked reasons and warnings"
+                description="Any blocking reasons returned by the promotion gate should be resolved before progression."
+              />
+
+              <div className="p-5 sm:p-6">
+                <BlockedReasonList result={singleResult} />
+              </div>
+            </Card>
           </div>
-        </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader
+              eyebrow="Payload Preview"
+              title="Evaluation request"
+              description="Normalized request body sent to the single strategy promotion endpoint."
+            />
+
+            <div className="p-5 sm:p-6">
+              <JsonPreview data={payload} />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              eyebrow="Raw Result"
+              title="Single evaluation response"
+              description="Raw backend response for debugging and audit verification."
+            />
+
+            <div className="p-5 sm:p-6">
+              <JsonPreview
+                data={
+                  singleResult ?? {
+                    status: "not_evaluated",
+                    message: "Run a strategy evaluation to inspect the result.",
+                  }
+                }
+              />
+            </div>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader
-            eyebrow="Notes"
-            title="Warnings & Blocks"
-            description="Reasons are separated so the next fix is obvious."
+            eyebrow="Batch Evaluation"
+            title="Evaluate-all response"
+            description="Raw response returned by the batch promotion endpoint."
           />
 
-          <div className="space-y-4 p-6">
-            {hasResult && blockedReasons.length > 0 ? (
-              <div className="rounded-3xl border border-rose-400/20 bg-rose-500/10 p-5">
-                <p className="font-bold text-rose-100">Blocked reasons</p>
-
-                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-rose-100/80">
-                  {blockedReasons.map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : hasResult ? (
-              <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5">
-                <p className="font-bold text-emerald-100">No hard blocks</p>
-
-                <p className="mt-2 text-sm text-emerald-100/75">
-                  The current result has no blocking reason.
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
-                <p className="font-bold text-slate-200">No decision yet</p>
-
-                <p className="mt-2 text-sm text-slate-400">
-                  Run an evaluation to see warnings and blocking reasons.
-                </p>
-              </div>
-            )}
-
-            {hasResult && warnings.length > 0 ? (
-              <div className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
-                <p className="font-bold text-amber-100">Warnings</p>
-
-                <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-amber-100/80">
-                  {warnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : hasResult ? (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
-                <p className="font-bold text-slate-200">No warnings</p>
-
-                <p className="mt-2 text-sm text-slate-400">
-                  The current result has no warning.
-                </p>
-              </div>
-            ) : null}
+          <div className="p-5 sm:p-6">
+            <JsonPreview
+              data={
+                batchResult ?? {
+                  status: "not_evaluated",
+                  message: "Click Evaluate All to inspect batch output.",
+                }
+              }
+            />
           </div>
         </Card>
-      </section>
-
-      {result ? (
-        <Card>
-          <CardHeader
-            eyebrow="Raw Decision"
-            title="Promotion API Response"
-            description="Developer view for debugging the backend gate response."
-          />
-
-          <div className="p-6">
-            <JsonPreview data={result} />
-          </div>
-        </Card>
-      ) : null}
+      </div>
     </PremiumPageShell>
   );
-} 
+}
+
+function getStatusToneFromResult(status: string, score: number): Tone {
+  const normalized = status.toLowerCase();
+
+  if (
+    normalized.includes("eligible") ||
+    normalized.includes("approved") ||
+    normalized.includes("pass") ||
+    score >= 75
+  ) {
+    return "success";
+  }
+
+  if (
+    normalized.includes("blocked") ||
+    normalized.includes("rejected") ||
+    normalized.includes("failed")
+  ) {
+    return "danger";
+  }
+
+  if (normalized.includes("review") || normalized.includes("pending")) {
+    return "warning";
+  }
+
+  return "neutral";
+}

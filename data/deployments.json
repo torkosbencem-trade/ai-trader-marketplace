@@ -1,0 +1,19 @@
+[
+  {
+    "id": "deployment-1781610094398",
+    "allocationRequestId": "allocation-1781609669114",
+    "strategyId": "submission-1781609069912",
+    "strategyName": "Momentum Breakout Alpha V2",
+    "investorEmail": "investor@example.com",
+    "requestedCapital": 100000,
+    "broker": "Alpaca",
+    "deploymentMode": "Paper",
+    "riskState": "Passed",
+    "maxAllocation": 50000,
+    "maxDrawdown": 8,
+    "dailyLossLimit": 2.5,
+    "status": "Prepared",
+    "createdAt": "2026-06-16T11:41:34.398Z",
+    "updatedAt": null
+  }
+]

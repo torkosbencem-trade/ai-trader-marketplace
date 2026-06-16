@@ -106,4 +106,4 @@ if ($failed -eq 0) {
 }
 
 Write-Host "[FAIL] AI Trader health check failed. Failed checks: $failed" -ForegroundColor Red
-exit 1
+exit 1.
