@@ -1,15 +1,5 @@
-import {
-  addAllocationRequest as fileAddAllocationRequest,
-  addDeployment as fileAddDeployment,
-  addStrategySubmission as fileAddStrategySubmission,
-  appendAuditEvent as fileAppendAuditEvent,
-  listAllocationRequests as fileListAllocationRequests,
-  listAuditEvents as fileListAuditEvents,
-  listDeployments as fileListDeployments,
-  listStrategySubmissions as fileListStrategySubmissions,
-  updateAllocationRequestStatus as fileUpdateAllocationRequestStatus,
-  updateStoredSubmissionStatus as fileUpdateStoredSubmissionStatus,
-} from "./server-store";
+import * as databaseStore from "./database-store";
+import * as fileStore from "./server-store";
 import { strategies } from "./strategies";
 
 export type {
@@ -23,61 +13,70 @@ export type {
 
 export type StorageProvider = "file-store" | "database";
 
-export const configuredStorageProvider =
+export const configuredStorageProvider: StorageProvider =
   process.env.STORAGE_PROVIDER === "database" ? "database" : "file-store";
 
-export const activeStorageProvider: StorageProvider = "file-store";
+export const activeStorageProvider: StorageProvider =
+  configuredStorageProvider === "database" && databaseStore.databaseStoreAvailable()
+    ? "database"
+    : "file-store";
+
+function store() {
+  return activeStorageProvider === "database" ? databaseStore : fileStore;
+}
 
 export const repositoryName = "AI Trader Repository";
 
 export async function listStrategySubmissions() {
-  return fileListStrategySubmissions();
+  return store().listStrategySubmissions();
 }
 
 export async function addStrategySubmission(
-  payload: Parameters<typeof fileAddStrategySubmission>[0]
+  payload: Parameters<typeof fileStore.addStrategySubmission>[0]
 ) {
-  return fileAddStrategySubmission(payload);
+  return store().addStrategySubmission(payload);
 }
 
 export async function updateStoredSubmissionStatus(
-  ...args: Parameters<typeof fileUpdateStoredSubmissionStatus>
+  ...args: Parameters<typeof fileStore.updateStoredSubmissionStatus>
 ) {
-  return fileUpdateStoredSubmissionStatus(...args);
+  return store().updateStoredSubmissionStatus(...args);
 }
 
 export async function listAllocationRequests() {
-  return fileListAllocationRequests();
+  return store().listAllocationRequests();
 }
 
 export async function addAllocationRequest(
-  payload: Parameters<typeof fileAddAllocationRequest>[0]
+  payload: Parameters<typeof fileStore.addAllocationRequest>[0]
 ) {
-  return fileAddAllocationRequest(payload);
+  return store().addAllocationRequest(payload);
 }
 
 export async function updateAllocationRequestStatus(
-  ...args: Parameters<typeof fileUpdateAllocationRequestStatus>
+  ...args: Parameters<typeof fileStore.updateAllocationRequestStatus>
 ) {
-  return fileUpdateAllocationRequestStatus(...args);
+  return store().updateAllocationRequestStatus(...args);
 }
 
 export async function listDeployments() {
-  return fileListDeployments();
+  return store().listDeployments();
 }
 
-export async function addDeployment(payload: Parameters<typeof fileAddDeployment>[0]) {
-  return fileAddDeployment(payload);
+export async function addDeployment(
+  payload: Parameters<typeof fileStore.addDeployment>[0]
+) {
+  return store().addDeployment(payload);
 }
 
 export async function listAuditEvents() {
-  return fileListAuditEvents();
+  return store().listAuditEvents();
 }
 
 export async function appendAuditEvent(
-  payload: Parameters<typeof fileAppendAuditEvent>[0]
+  payload: Parameters<typeof fileStore.appendAuditEvent>[0]
 ) {
-  return fileAppendAuditEvent(payload);
+  return store().appendAuditEvent(payload);
 }
 
 export async function getRepositoryStatus() {
@@ -97,7 +96,7 @@ export async function getRepositoryStatus() {
     repositoryName,
     configuredStorageProvider,
     activeStorageProvider,
-    databaseConnected: false,
+    databaseConnected: activeStorageProvider === "database",
     migrationReady: true,
     collections: {
       staticStrategies: strategies.length,
@@ -133,7 +132,7 @@ export async function getRepositoryStatus() {
         purpose: "Immutable operational event history.",
       },
     ],
-    nextRecommendedProvider: "PostgreSQL via Supabase or Neon",
+    nextRecommendedProvider: "Supabase PostgreSQL",
     timestamp: new Date().toISOString(),
   };
 }
