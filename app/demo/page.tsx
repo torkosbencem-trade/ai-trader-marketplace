@@ -103,6 +103,11 @@ const demoFlows = [
 
 const systemLinks = [
   {
+    label: "Demo Data Center",
+    href: "/system/demo-data",
+    description: "Seed or reset Supabase demo data before presentations.",
+  },
+  {
     label: "Audit Log",
     href: "/system/audit",
     description: "Operational event history for submissions, reviews and deployments.",
