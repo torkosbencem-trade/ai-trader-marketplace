@@ -1,8 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserConfig,
+} from "../../lib/supabase-browser";
 
 type ReviewStatus = "Pending" | "Approved" | "Rejected";
+
+async function getAccessToken() {
+  if (!hasSupabaseBrowserConfig()) {
+    return null;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
 type RiskRating = "Low" | "Medium" | "High";
 
 type ParsedMetrics = {
@@ -265,10 +282,17 @@ export default function AdminPage() {
     setAdminError("");
 
     try {
+      const token = await getAccessToken();
+
+      if (!token) {
+        throw new Error("Admin session required. Please sign in with an admin account.");
+      }
+
       const response = await fetch(`/api/admin/submissions/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           status,

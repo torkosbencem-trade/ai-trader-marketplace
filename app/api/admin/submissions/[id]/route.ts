@@ -3,6 +3,7 @@ import {
   updateStoredSubmissionStatus,
   type ReviewStatus,
 } from "../../../../../lib/platform-repository";
+import { requireAdminRequest } from "../../../../../lib/server-admin-guard";
 
 function isValidStatus(value: unknown): value is ReviewStatus {
   return value === "Pending" || value === "Approved" || value === "Rejected";
@@ -13,6 +14,20 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const admin = await requireAdminRequest(request);
+
+    if (!admin.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: admin.error,
+        },
+        {
+          status: admin.status,
+        }
+      );
+    }
+
     const { id } = await context.params;
     const body = await request.json();
 
@@ -28,10 +43,12 @@ export async function PATCH(
       );
     }
 
+    const reviewer = admin.email ?? body.reviewer ?? "admin";
+
     const updated = await updateStoredSubmissionStatus(
       id,
       body.status,
-      body.reviewer ?? "demo-admin",
+      reviewer,
       body.reason ?? null
     );
 
@@ -41,21 +58,23 @@ export async function PATCH(
       data: {
         id,
         status: body.status,
-        reviewer: body.reviewer ?? "demo-admin",
+        reviewer,
         reason: body.reason ?? null,
         persisted: Boolean(updated),
         updatedAt: new Date().toISOString(),
       },
       meta: {
         workflow: "admin-review",
-        source: "file-store",
+        source: "repository",
+        adminSource: admin.adminSource,
       },
     });
-  } catch {
+  } catch (error) {
     return NextResponse.json(
       {
         success: false,
-        error: "Invalid admin review payload.",
+        error:
+          error instanceof Error ? error.message : "Invalid admin review payload.",
       },
       {
         status: 400,

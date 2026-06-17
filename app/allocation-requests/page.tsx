@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserConfig,
+} from "../../lib/supabase-browser";
 
 type ReviewStatus = "Pending" | "Approved" | "Rejected";
 
@@ -18,6 +22,19 @@ type AllocationRequest = {
   createdAt: string;
   updatedAt: string | null;
 };
+
+async function getAccessToken() {
+  if (!hasSupabaseBrowserConfig()) {
+    return null;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
 
 const tabs: Array<"All" | ReviewStatus> = [
   "All",
@@ -108,10 +125,17 @@ export default function AllocationRequestsPage() {
     setError("");
 
     try {
+      const token = await getAccessToken();
+
+      if (!token) {
+        throw new Error("Admin session required. Please sign in with an admin account.");
+      }
+
       const response = await fetch(`/api/allocation-requests/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           status,
