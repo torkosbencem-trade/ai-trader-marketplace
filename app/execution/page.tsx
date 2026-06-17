@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserConfig,
+} from "../../lib/supabase-browser";
 
 type ReviewStatus = "Pending" | "Approved" | "Rejected";
 type DeploymentMode = "Paper" | "Live";
@@ -25,6 +29,19 @@ type AllocationRequest = {
   createdAt: string;
   updatedAt: string | null;
 };
+
+async function getAccessToken() {
+  if (!hasSupabaseBrowserConfig()) {
+    return null;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
 
 const brokers = [
   {
@@ -232,10 +249,17 @@ export default function ExecutionPage() {
     setFirewallChecks([]);
 
     try {
+      const token = await getAccessToken();
+
+      if (!token) {
+        throw new Error("Admin session required. Please sign in with an admin account.");
+      }
+
       const response = await fetch("/api/execution/deploy", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           allocationRequestId: selectedRequest.id,

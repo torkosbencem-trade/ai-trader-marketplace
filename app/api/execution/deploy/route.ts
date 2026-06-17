@@ -6,6 +6,7 @@ import {
 } from "../../../../lib/platform-repository";
 import { resolveStrategyRisk } from "../../../../lib/strategy-risk-resolver";
 import { getCurrentPortfolioRiskMode } from "../../../../lib/portfolio-risk-mode";
+import { requireAdminRequest } from "../../../../lib/server-admin-guard";
 
 type FirewallCheck = {
   passed: boolean;
@@ -71,15 +72,24 @@ async function runExecutionFirewall(body: Record<string, unknown>) {
   }
 
   if (riskState === "Blocked") {
-    checks.push(fail("risk_state_blocked", "Deployment was blocked by the risk engine."));
+    checks.push(
+      fail("risk_state_blocked", "Deployment was blocked by the risk engine.")
+    );
   }
 
   if (!Number.isFinite(requestedCapital) || requestedCapital <= 0) {
-    checks.push(fail("invalid_requested_capital", "Requested capital must be a positive number."));
+    checks.push(
+      fail(
+        "invalid_requested_capital",
+        "Requested capital must be a positive number."
+      )
+    );
   }
 
   if (!Number.isFinite(maxAllocation) || maxAllocation <= 0) {
-    checks.push(fail("invalid_max_allocation", "Max allocation must be a positive number."));
+    checks.push(
+      fail("invalid_max_allocation", "Max allocation must be a positive number.")
+    );
   }
 
   if (
@@ -126,10 +136,7 @@ async function runExecutionFirewall(body: Record<string, unknown>) {
 
     if (!allocationRequest) {
       checks.push(
-        fail(
-          "allocation_request_not_found",
-          "Allocation request was not found."
-        )
+        fail("allocation_request_not_found", "Allocation request was not found.")
       );
     } else if (allocationRequest.status !== "Approved") {
       checks.push(
@@ -158,6 +165,20 @@ async function runExecutionFirewall(body: Record<string, unknown>) {
 
 export async function POST(request: Request) {
   try {
+    const admin = await requireAdminRequest(request);
+
+    if (!admin.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: admin.error,
+        },
+        {
+          status: admin.status,
+        }
+      );
+    }
+
     const body = await request.json();
 
     const firewall = await runExecutionFirewall(body);
@@ -167,7 +188,7 @@ export async function POST(request: Request) {
         type: "execution-deployment",
         title: "Deployment blocked by Execution Firewall",
         detail: "Deployment was blocked before package creation.",
-        actor: "execution-firewall",
+        actor: admin.email ?? "execution-firewall",
         metadata: {
           allocationRequestId: body.allocationRequestId ?? null,
           strategyId: body.strategyId ?? "unknown",
@@ -180,6 +201,7 @@ export async function POST(request: Request) {
           checks: firewall.checks,
           resolvedStrategy: firewall.resolvedStrategy,
           portfolioRiskMode: firewall.portfolioRiskMode,
+          adminSource: admin.adminSource,
         },
       });
 
@@ -228,12 +250,13 @@ export async function POST(request: Request) {
       detail: `${deployment.strategyName} deployment package prepared for ${
         deployment.investorEmail ?? "investor"
       }.`,
-      actor: "execution-system",
+      actor: admin.email ?? "execution-system",
       metadata: {
         deployment,
         firewallChecks: firewall.checks,
         resolvedStrategy: firewall.resolvedStrategy,
         portfolioRiskMode: firewall.portfolioRiskMode,
+        adminSource: admin.adminSource,
       },
     });
 
@@ -248,6 +271,7 @@ export async function POST(request: Request) {
           firewallChecks: firewall.checks,
           strategy: firewall.resolvedStrategy,
           portfolioRiskMode: firewall.portfolioRiskMode,
+          adminSource: admin.adminSource,
         },
       },
       {
