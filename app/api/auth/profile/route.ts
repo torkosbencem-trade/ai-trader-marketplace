@@ -2,8 +2,43 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "../../../../lib/supabase-server";
 
 type UserRole = "investor" | "creator" | "admin";
+type ProfileStatus = "pending" | "active" | "restricted" | "suspended";
+type ProfilePlan = "free_demo" | "investor_pro" | "creator_pro" | "trader_pro" | "institution";
+type SubscriptionStatus = "none" | "trialing" | "active" | "past_due" | "canceled";
+type RiskProfile = "not_set" | "conservative" | "balanced" | "aggressive" | "professional";
 
 const publicRoles: UserRole[] = ["investor", "creator"];
+
+const validStatuses: ProfileStatus[] = [
+  "pending",
+  "active",
+  "restricted",
+  "suspended",
+];
+
+const validPlans: ProfilePlan[] = [
+  "free_demo",
+  "investor_pro",
+  "creator_pro",
+  "trader_pro",
+  "institution",
+];
+
+const validSubscriptionStatuses: SubscriptionStatus[] = [
+  "none",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+];
+
+const validRiskProfiles: RiskProfile[] = [
+  "not_set",
+  "conservative",
+  "balanced",
+  "aggressive",
+  "professional",
+];
 
 function getBearerToken(request: Request) {
   const header = request.headers.get("authorization") ?? "";
@@ -40,6 +75,40 @@ function resolveRole(email: string | null | undefined, requestedRole: unknown): 
   }
 
   return normalizeRequestedRole(requestedRole);
+}
+
+function normalizeStatus(value: unknown): ProfileStatus {
+  return validStatuses.includes(value as ProfileStatus)
+    ? (value as ProfileStatus)
+    : "active";
+}
+
+function normalizePlan(value: unknown, role: UserRole): ProfilePlan {
+  if (validPlans.includes(value as ProfilePlan)) {
+    return value as ProfilePlan;
+  }
+
+  if (role === "creator") {
+    return "creator_pro";
+  }
+
+  if (role === "admin") {
+    return "institution";
+  }
+
+  return "free_demo";
+}
+
+function normalizeSubscriptionStatus(value: unknown): SubscriptionStatus {
+  return validSubscriptionStatuses.includes(value as SubscriptionStatus)
+    ? (value as SubscriptionStatus)
+    : "none";
+}
+
+function normalizeRiskProfile(value: unknown): RiskProfile {
+  return validRiskProfiles.includes(value as RiskProfile)
+    ? (value as RiskProfile)
+    : "not_set";
 }
 
 export async function GET(request: Request) {
@@ -156,12 +225,38 @@ export async function POST(request: Request) {
         ? user.user_metadata.display_name
         : user.email ?? "AI Trader User";
 
+    const status = normalizeStatus(body.status);
+    const plan = normalizePlan(body.plan, role);
+    const subscriptionStatus = normalizeSubscriptionStatus(body.subscriptionStatus);
+    const riskProfile = normalizeRiskProfile(body.riskProfile);
+    const onboardingCompleted =
+      typeof body.onboardingCompleted === "boolean"
+        ? body.onboardingCompleted
+        : false;
+
+    const verificationLevel =
+      typeof body.verificationLevel === "number" &&
+      Number.isFinite(body.verificationLevel)
+        ? Math.max(0, Math.min(5, Math.floor(body.verificationLevel)))
+        : role === "admin"
+        ? 5
+        : 0;
+
+    const now = new Date().toISOString();
+
     const row = {
       id: user.id,
       email: user.email ?? body.email ?? "unknown",
       role,
       display_name: displayName,
-      updated_at: new Date().toISOString(),
+      status,
+      plan,
+      subscription_status: subscriptionStatus,
+      risk_profile: riskProfile,
+      onboarding_completed: onboardingCompleted,
+      verification_level: verificationLevel,
+      last_seen_at: now,
+      updated_at: now,
     };
 
     const { data, error } = await supabase
@@ -184,6 +279,7 @@ export async function POST(request: Request) {
         adminEmailMatched: isAdminEmail(user.email),
         requestedRole: body.role ?? null,
         assignedRole: role,
+        assignedPlan: plan,
       },
     });
   } catch (error) {
