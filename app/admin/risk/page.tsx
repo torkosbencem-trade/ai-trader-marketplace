@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserConfig,
+} from "../../../lib/supabase-browser";
 
 type PortfolioRiskMode = "Normal" | "Reduced" | "Paused";
 
@@ -21,6 +25,19 @@ type AuditEvent = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
 };
+
+async function getAccessToken() {
+  if (!hasSupabaseBrowserConfig()) {
+    return null;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
 
 const riskModes: {
   id: PortfolioRiskMode;
@@ -96,10 +113,17 @@ export default function AdminRiskConsolePage() {
     setError("");
 
     try {
+      const token = await getAccessToken();
+
+      if (!token) {
+        throw new Error("Admin session required. Please sign in with an admin account.");
+      }
+
       const response = await fetch("/api/portfolio/risk-mode", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           riskMode,

@@ -5,6 +5,7 @@ import {
   isPortfolioRiskMode,
   type PortfolioRiskMode,
 } from "../../../../lib/portfolio-risk-mode";
+import { requireAdminRequest } from "../../../../lib/server-admin-guard";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -24,6 +25,20 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const admin = await requireAdminRequest(request);
+
+    if (!admin.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: admin.error,
+        },
+        {
+          status: admin.status,
+        }
+      );
+    }
+
     const body = await request.json();
 
     if (!isPortfolioRiskMode(body.riskMode)) {
@@ -43,7 +58,7 @@ export async function POST(request: Request) {
     const event = {
       portfolioId: body.portfolioId ?? "demo-investor-001",
       riskMode,
-      requestedBy: body.requestedBy ?? "demo-user",
+      requestedBy: admin.email ?? body.requestedBy ?? "admin",
       auditRequired: true,
       updatedAt: new Date().toISOString(),
     };
@@ -52,7 +67,7 @@ export async function POST(request: Request) {
       type: "portfolio-risk-mode",
       title: "Portfolio risk mode changed",
       detail: `Portfolio risk mode changed to ${riskMode}.`,
-      actor: body.requestedBy ?? "demo-user",
+      actor: admin.email ?? body.requestedBy ?? "admin",
       metadata: event,
     });
 
@@ -64,6 +79,7 @@ export async function POST(request: Request) {
         meta: {
           workflow: "portfolio-risk-mode",
           source: "repository",
+          adminSource: admin.adminSource,
         },
       },
       {
