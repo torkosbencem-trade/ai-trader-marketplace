@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   createSupabaseBrowserClient,
@@ -136,6 +136,7 @@ export default function WorkspacePage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const loadedUserIdRef = useRef<string | null>(null);
   const configured = hasSupabaseBrowserConfig();
 
   const activeRole: UserRole = profile?.role ?? "investor";
@@ -144,7 +145,24 @@ export default function WorkspacePage() {
     return workspaceActions[activeRole];
   }, [activeRole]);
 
-  async function loadWorkspace(nextSession?: Session | null) {
+  async function fetchProfile(activeSession: Session) {
+    const response = await fetch("/api/auth/profile", {
+      headers: {
+        Authorization: `Bearer ${activeSession.access_token}`,
+      },
+      cache: "no-store",
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error ?? "Profile lookup failed.");
+    }
+
+    setProfile(payload.data ?? null);
+  }
+
+  async function loadInitialWorkspace() {
     setLoading(true);
     setMessage("");
     setError("");
@@ -157,33 +175,23 @@ export default function WorkspacePage() {
       }
 
       const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.getSession();
 
-      const activeSession =
-        nextSession ??
-        (await supabase.auth.getSession()).data.session ??
-        null;
+      if (error) {
+        throw error;
+      }
 
+      const activeSession = data.session ?? null;
       setSession(activeSession);
 
       if (!activeSession) {
         setProfile(null);
+        loadedUserIdRef.current = null;
         return;
       }
 
-      const response = await fetch("/api/auth/profile", {
-        headers: {
-          Authorization: `Bearer ${activeSession.access_token}`,
-        },
-        cache: "no-store",
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Profile lookup failed.");
-      }
-
-      setProfile(payload.data ?? null);
+      loadedUserIdRef.current = activeSession.user.id;
+      await fetchProfile(activeSession);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Workspace load failed.");
     } finally {
@@ -202,7 +210,13 @@ export default function WorkspacePage() {
       }
 
       const supabase = createSupabaseBrowserClient();
-      const activeSession = (await supabase.auth.getSession()).data.session;
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        throw error;
+      }
+
+      const activeSession = data.session;
 
       if (!activeSession) {
         throw new Error("No active session.");
@@ -234,7 +248,9 @@ export default function WorkspacePage() {
         throw new Error(payload.error ?? "Profile sync failed.");
       }
 
+      setSession(activeSession);
       setProfile(payload.data);
+      loadedUserIdRef.current = activeSession.user.id;
       setMessage("Profile synced. Workspace updated.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Profile sync failed.");
@@ -261,6 +277,7 @@ export default function WorkspacePage() {
 
       setSession(null);
       setProfile(null);
+      loadedUserIdRef.current = null;
       setMessage("Signed out.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Sign out failed.");
@@ -268,10 +285,22 @@ export default function WorkspacePage() {
   }
 
   useEffect(() => {
-    loadWorkspace();
+    let mounted = true;
+
+    async function boot() {
+      if (!mounted) {
+        return;
+      }
+
+      await loadInitialWorkspace();
+    }
+
+    boot();
 
     if (!configured) {
-      return;
+      return () => {
+        mounted = false;
+      };
     }
 
     const supabase = createSupabaseBrowserClient();
@@ -279,10 +308,32 @@ export default function WorkspacePage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      loadWorkspace(nextSession);
+      if (!mounted) {
+        return;
+      }
+
+      setSession(nextSession);
+
+      if (!nextSession) {
+        setProfile(null);
+        loadedUserIdRef.current = null;
+        return;
+      }
+
+      if (loadedUserIdRef.current === nextSession.user.id) {
+        return;
+      }
+
+      loadedUserIdRef.current = nextSession.user.id;
+      fetchProfile(nextSession).catch((error) => {
+        setError(
+          error instanceof Error ? error.message : "Profile lookup failed."
+        );
+      });
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [configured]);
