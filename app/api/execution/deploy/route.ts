@@ -5,6 +5,7 @@ import {
   listAllocationRequests,
 } from "../../../../lib/platform-repository";
 import { resolveStrategyRisk } from "../../../../lib/strategy-risk-resolver";
+import { getCurrentPortfolioRiskMode } from "../../../../lib/portfolio-risk-mode";
 
 type FirewallCheck = {
   passed: boolean;
@@ -39,7 +40,31 @@ async function runExecutionFirewall(body: Record<string, unknown>) {
       ? body.allocationRequestId
       : null;
 
+  const portfolioId =
+    typeof body.portfolioId === "string" && body.portfolioId
+      ? body.portfolioId
+      : "demo-investor-001";
+
+  const portfolioRiskMode = await getCurrentPortfolioRiskMode(portfolioId);
+
   const checks: FirewallCheck[] = [];
+
+  if (portfolioRiskMode.riskMode === "Paused") {
+    checks.push(
+      fail(
+        "portfolio_paused",
+        "Portfolio risk mode is Paused. Deployment is blocked."
+      )
+    );
+  }
+
+  if (portfolioRiskMode.riskMode === "Reduced") {
+    checks.push(
+      pass(
+        "Portfolio risk mode is Reduced. Paper deployment may continue with tighter monitoring."
+      )
+    );
+  }
 
   if (!strategyId) {
     checks.push(fail("missing_strategy", "Strategy ID is required."));
@@ -127,6 +152,7 @@ async function runExecutionFirewall(body: Record<string, unknown>) {
     checks,
     resolvedStrategy,
     allocationRequest,
+    portfolioRiskMode,
   };
 }
 
@@ -153,6 +179,7 @@ export async function POST(request: Request) {
           riskState: body.riskState ?? "Unknown",
           checks: firewall.checks,
           resolvedStrategy: firewall.resolvedStrategy,
+          portfolioRiskMode: firewall.portfolioRiskMode,
         },
       });
 
@@ -166,6 +193,7 @@ export async function POST(request: Request) {
             checkedAt: new Date().toISOString(),
             checks: firewall.checks,
             strategy: firewall.resolvedStrategy,
+            portfolioRiskMode: firewall.portfolioRiskMode,
           },
         },
         {
@@ -205,6 +233,7 @@ export async function POST(request: Request) {
         deployment,
         firewallChecks: firewall.checks,
         resolvedStrategy: firewall.resolvedStrategy,
+        portfolioRiskMode: firewall.portfolioRiskMode,
       },
     });
 
@@ -218,6 +247,7 @@ export async function POST(request: Request) {
           source: "repository",
           firewallChecks: firewall.checks,
           strategy: firewall.resolvedStrategy,
+          portfolioRiskMode: firewall.portfolioRiskMode,
         },
       },
       {

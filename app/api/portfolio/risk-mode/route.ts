@@ -1,17 +1,32 @@
 import { NextResponse } from "next/server";
 import { appendAuditEvent } from "../../../../lib/platform-repository";
+import {
+  getCurrentPortfolioRiskMode,
+  isPortfolioRiskMode,
+  type PortfolioRiskMode,
+} from "../../../../lib/portfolio-risk-mode";
 
-type RiskMode = "Normal" | "Reduced" | "Paused";
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const portfolioId = url.searchParams.get("portfolioId") ?? "demo-investor-001";
 
-function isValidRiskMode(value: unknown): value is RiskMode {
-  return value === "Normal" || value === "Reduced" || value === "Paused";
+  const currentRiskMode = await getCurrentPortfolioRiskMode(portfolioId);
+
+  return NextResponse.json({
+    success: true,
+    data: currentRiskMode,
+    meta: {
+      workflow: "portfolio-risk-mode",
+      source: currentRiskMode.source,
+    },
+  });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    if (!isValidRiskMode(body.riskMode)) {
+    if (!isPortfolioRiskMode(body.riskMode)) {
       return NextResponse.json(
         {
           success: false,
@@ -23,9 +38,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const riskMode = body.riskMode as PortfolioRiskMode;
+
     const event = {
       portfolioId: body.portfolioId ?? "demo-investor-001",
-      riskMode: body.riskMode,
+      riskMode,
       requestedBy: body.requestedBy ?? "demo-user",
       auditRequired: true,
       updatedAt: new Date().toISOString(),
@@ -34,7 +51,7 @@ export async function POST(request: Request) {
     await appendAuditEvent({
       type: "portfolio-risk-mode",
       title: "Portfolio risk mode changed",
-      detail: `Portfolio risk mode changed to ${body.riskMode}.`,
+      detail: `Portfolio risk mode changed to ${riskMode}.`,
       actor: body.requestedBy ?? "demo-user",
       metadata: event,
     });
@@ -42,11 +59,11 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
-        message: `Portfolio risk mode changed to ${body.riskMode}.`,
+        message: `Portfolio risk mode changed to ${riskMode}.`,
         data: event,
         meta: {
           workflow: "portfolio-risk-mode",
-          source: "file-store",
+          source: "repository",
         },
       },
       {
