@@ -9,6 +9,7 @@ import {
   normalizeUserRiskProfile,
 } from "../../../lib/risk-compatibility";
 import { resolveStrategyRisk } from "../../../lib/strategy-risk-resolver";
+import { requireAdminRequest } from "../../../lib/server-admin-guard";
 
 function getBearerToken(request: Request) {
   const header = request.headers.get("authorization") ?? "";
@@ -56,7 +57,21 @@ async function getUserRiskProfile(request: Request) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const admin = await requireAdminRequest(request);
+
+  if (!admin.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: admin.error,
+      },
+      {
+        status: admin.status,
+      }
+    );
+  }
+
   const requests = await listAllocationRequests();
 
   return NextResponse.json({
@@ -67,6 +82,7 @@ export async function GET() {
       approved: requests.filter((request) => request.status === "Approved").length,
       rejected: requests.filter((request) => request.status === "Rejected").length,
       source: "repository",
+      adminSource: admin.adminSource,
       timestamp: new Date().toISOString(),
     },
   });

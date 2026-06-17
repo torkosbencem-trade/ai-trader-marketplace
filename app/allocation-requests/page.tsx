@@ -56,8 +56,17 @@ export default function AllocationRequestsPage() {
     setError("");
 
     try {
+      const token = await getAccessToken();
+
+      if (!token) {
+        throw new Error("Admin session required. Please sign in with an admin account.");
+      }
+
       const response = await fetch("/api/allocation-requests", {
         cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       const payload = await response.json();
