@@ -7,6 +7,7 @@ import {
   type StrategyStatus,
 } from "../../../lib/strategies";
 import { listStrategySubmissions } from "../../../lib/platform-repository";
+import { RiskCompatibilityCard } from "../../../components/risk-compatibility-card";
 
 type ParsedMetrics = {
   detectedRows: number;
@@ -265,6 +266,10 @@ export default async function StrategyReportPage({
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+        <RiskCompatibilityCard strategyId={strategy.id} />
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[1fr_380px] lg:px-8">
