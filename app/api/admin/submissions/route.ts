@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { apiSubmissions } from "../../../../lib/platform-api-data";
+import { listStrategySubmissions } from "../../../../lib/platform-repository";
 import { requireAdminRequest } from "../../../../lib/server-admin-guard";
 
 export async function GET(request: Request) {
@@ -17,18 +17,20 @@ export async function GET(request: Request) {
     );
   }
 
-  const pending = apiSubmissions.filter((item) => item.status === "Pending").length;
-  const approved = apiSubmissions.filter((item) => item.status === "Approved").length;
-  const rejected = apiSubmissions.filter((item) => item.status === "Rejected").length;
+  const submissions = await listStrategySubmissions();
+
+  const pending = submissions.filter((item) => item.status === "Pending").length;
+  const approved = submissions.filter((item) => item.status === "Approved").length;
+  const rejected = submissions.filter((item) => item.status === "Rejected").length;
 
   return NextResponse.json({
-    data: apiSubmissions,
+    data: submissions,
     meta: {
-      count: apiSubmissions.length,
+      count: submissions.length,
       pending,
       approved,
       rejected,
-      source: "mock-api",
+      source: "repository",
       adminSource: admin.adminSource,
       timestamp: new Date().toISOString(),
     },
