@@ -3,13 +3,12 @@ import {
   addAllocationRequest,
   listAllocationRequests,
 } from "../../../lib/platform-repository";
-import { getStrategy } from "../../../lib/strategies";
 import { createSupabaseServerClient } from "../../../lib/supabase-server";
 import {
   getRiskCompatibility,
-  normalizeStrategyRiskLevel,
   normalizeUserRiskProfile,
 } from "../../../lib/risk-compatibility";
+import { resolveStrategyRisk } from "../../../lib/strategy-risk-resolver";
 
 function getBearerToken(request: Request) {
   const header = request.headers.get("authorization") ?? "";
@@ -115,11 +114,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const strategy = getStrategy(body.strategyId);
-    const strategyRiskLevel = normalizeStrategyRiskLevel(strategy?.risk);
+    const resolvedStrategy = await resolveStrategyRisk(body.strategyId);
+
+    if (!resolvedStrategy) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Strategy not found or not approved.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
     const { profile, riskProfile } = await getUserRiskProfile(request);
 
-    const compatibility = getRiskCompatibility(riskProfile, strategyRiskLevel);
+    const compatibility = getRiskCompatibility(
+      riskProfile,
+      resolvedStrategy.risk
+    );
 
     if (compatibility.tone === "danger") {
       return NextResponse.json(
@@ -130,13 +144,7 @@ export async function POST(request: Request) {
           data: {
             compatibility,
             profile,
-            strategy: strategy
-              ? {
-                  id: strategy.id,
-                  name: strategy.name,
-                  risk: strategyRiskLevel,
-                }
-              : null,
+            strategy: resolvedStrategy,
           },
         },
         {
@@ -150,12 +158,20 @@ export async function POST(request: Request) {
         ? `[Risk Compatibility Warning: ${compatibility.label}] ${compatibility.allocationGuidance}`
         : null;
 
+    const riskResolverNote = `[Strategy Risk Source: ${resolvedStrategy.source}] Risk=${resolvedStrategy.risk}${
+      resolvedStrategy.maxDrawdown !== null
+        ? `, MaxDrawdown=${resolvedStrategy.maxDrawdown}%`
+        : ""
+    }`;
+
     const userNotes =
       typeof body.notes === "string" && body.notes.trim()
         ? body.notes.trim()
         : null;
 
-    const notes = [warningNote, userNotes].filter(Boolean).join("\n\n") || null;
+    const notes =
+      [warningNote, riskResolverNote, userNotes].filter(Boolean).join("\n\n") ||
+      null;
 
     const allocationRequest = await addAllocationRequest({
       strategyId: body.strategyId,
@@ -179,6 +195,7 @@ export async function POST(request: Request) {
           workflow: "allocation-request",
           source: "repository",
           riskCompatibility: compatibility,
+          strategy: resolvedStrategy,
           profile,
         },
       },

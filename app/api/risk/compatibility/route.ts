@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { getStrategy } from "../../../../lib/strategies";
 import { createSupabaseServerClient } from "../../../../lib/supabase-server";
 import {
   getRiskCompatibility,
-  normalizeStrategyRiskLevel,
   normalizeUserRiskProfile,
 } from "../../../../lib/risk-compatibility";
+import { resolveStrategyRisk } from "../../../../lib/strategy-risk-resolver";
 
 function getBearerToken(request: Request) {
   const header = request.headers.get("authorization") ?? "";
@@ -34,13 +33,13 @@ export async function GET(request: Request) {
       );
     }
 
-    const strategy = getStrategy(strategyId);
+    const resolvedStrategy = await resolveStrategyRisk(strategyId);
 
-    if (!strategy) {
+    if (!resolvedStrategy) {
       return NextResponse.json(
         {
           success: false,
-          error: "Strategy not found.",
+          error: "Strategy not found or not approved.",
         },
         {
           status: 404,
@@ -72,21 +71,15 @@ export async function GET(request: Request) {
       }
     }
 
-    const strategyRiskLevel = normalizeStrategyRiskLevel(strategy.risk);
     const compatibility = getRiskCompatibility(
       userRiskProfile,
-      strategyRiskLevel
+      resolvedStrategy.risk
     );
 
     return NextResponse.json({
       success: true,
       data: {
-        strategy: {
-          id: strategy.id,
-          name: strategy.name,
-          risk: strategyRiskLevel,
-          category: strategy.category,
-        },
+        strategy: resolvedStrategy,
         profile,
         compatibility,
       },
