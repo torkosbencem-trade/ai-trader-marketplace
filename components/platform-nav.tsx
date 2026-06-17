@@ -5,6 +5,8 @@ const navItems = [
   { label: "Demo", href: "/demo" },
   { label: "Demo Data", href: "/system/demo-data" },
   { label: "Auth", href: "/auth" },
+  { label: "Profile", href: "/profile" },
+  { label: "Onboarding", href: "/onboarding" },
   { label: "Readiness", href: "/readiness" },
   { label: "Marketplace", href: "/marketplace" },
   { label: "Builder", href: "/strategy-builder" },

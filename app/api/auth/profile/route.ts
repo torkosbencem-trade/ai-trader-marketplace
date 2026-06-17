@@ -77,15 +77,19 @@ function resolveRole(email: string | null | undefined, requestedRole: unknown): 
   return normalizeRequestedRole(requestedRole);
 }
 
-function normalizeStatus(value: unknown): ProfileStatus {
+function normalizeStatus(value: unknown, fallback: ProfileStatus): ProfileStatus {
   return validStatuses.includes(value as ProfileStatus)
     ? (value as ProfileStatus)
-    : "active";
+    : fallback;
 }
 
-function normalizePlan(value: unknown, role: UserRole): ProfilePlan {
+function normalizePlan(value: unknown, role: UserRole, fallback: ProfilePlan): ProfilePlan {
   if (validPlans.includes(value as ProfilePlan)) {
     return value as ProfilePlan;
+  }
+
+  if (fallback) {
+    return fallback;
   }
 
   if (role === "creator") {
@@ -99,16 +103,19 @@ function normalizePlan(value: unknown, role: UserRole): ProfilePlan {
   return "free_demo";
 }
 
-function normalizeSubscriptionStatus(value: unknown): SubscriptionStatus {
+function normalizeSubscriptionStatus(
+  value: unknown,
+  fallback: SubscriptionStatus
+): SubscriptionStatus {
   return validSubscriptionStatuses.includes(value as SubscriptionStatus)
     ? (value as SubscriptionStatus)
-    : "none";
+    : fallback;
 }
 
-function normalizeRiskProfile(value: unknown): RiskProfile {
+function normalizeRiskProfile(value: unknown, fallback: RiskProfile): RiskProfile {
   return validRiskProfiles.includes(value as RiskProfile)
     ? (value as RiskProfile)
-    : "not_set";
+    : fallback;
 }
 
 export async function GET(request: Request) {
@@ -216,28 +223,52 @@ export async function POST(request: Request) {
       );
     }
 
-    const role = resolveRole(user.email, body.role ?? user.user_metadata?.role);
+    const { data: existingProfile, error: existingError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    const role = resolveRole(
+      user.email,
+      body.role ?? existingProfile?.role ?? user.user_metadata?.role
+    );
 
     const displayName =
       typeof body.displayName === "string" && body.displayName.trim()
         ? body.displayName.trim()
+        : typeof existingProfile?.display_name === "string" && existingProfile.display_name
+        ? existingProfile.display_name
         : typeof user.user_metadata?.display_name === "string"
         ? user.user_metadata.display_name
         : user.email ?? "AI Trader User";
 
-    const status = normalizeStatus(body.status);
-    const plan = normalizePlan(body.plan, role);
-    const subscriptionStatus = normalizeSubscriptionStatus(body.subscriptionStatus);
-    const riskProfile = normalizeRiskProfile(body.riskProfile);
+    const status = normalizeStatus(body.status, existingProfile?.status ?? "active");
+    const plan = normalizePlan(body.plan, role, existingProfile?.plan ?? (role === "admin" ? "institution" : "free_demo"));
+    const subscriptionStatus = normalizeSubscriptionStatus(
+      body.subscriptionStatus,
+      existingProfile?.subscription_status ?? "none"
+    );
+    const riskProfile = normalizeRiskProfile(
+      body.riskProfile,
+      existingProfile?.risk_profile ?? "not_set"
+    );
+
     const onboardingCompleted =
       typeof body.onboardingCompleted === "boolean"
         ? body.onboardingCompleted
-        : false;
+        : Boolean(existingProfile?.onboarding_completed ?? false);
 
     const verificationLevel =
       typeof body.verificationLevel === "number" &&
       Number.isFinite(body.verificationLevel)
         ? Math.max(0, Math.min(5, Math.floor(body.verificationLevel)))
+        : typeof existingProfile?.verification_level === "number"
+        ? existingProfile.verification_level
         : role === "admin"
         ? 5
         : 0;
@@ -246,7 +277,7 @@ export async function POST(request: Request) {
 
     const row = {
       id: user.id,
-      email: user.email ?? body.email ?? "unknown",
+      email: user.email ?? body.email ?? existingProfile?.email ?? "unknown",
       role,
       display_name: displayName,
       status,
@@ -280,6 +311,8 @@ export async function POST(request: Request) {
         requestedRole: body.role ?? null,
         assignedRole: role,
         assignedPlan: plan,
+        riskProfile,
+        onboardingCompleted,
       },
     });
   } catch (error) {
