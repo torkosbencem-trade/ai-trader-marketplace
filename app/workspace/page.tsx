@@ -1,64 +1,291 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import {
-  clearSession,
-  getStoredSession,
-  roleHome,
-  roleLabels,
-  rolePermissions,
-  type DemoSession,
-} from "../../lib/auth-session";
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserConfig,
+} from "../../lib/supabase-browser";
 
-const quickLinks = {
+type UserRole = "investor" | "creator" | "admin";
+
+type Profile = {
+  id: string;
+  email: string;
+  role: UserRole;
+  display_name: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+type WorkspaceAction = {
+  title: string;
+  description: string;
+  href: string;
+  badge: string;
+};
+
+const workspaceActions: Record<UserRole, WorkspaceAction[]> = {
   investor: [
-    { label: "Marketplace", href: "/marketplace" },
-    { label: "Portfolio", href: "/portfolio" },
-    { label: "Audit trail", href: "/system/audit" },
+    {
+      title: "Marketplace",
+      description: "Browse verified strategy reports and compare opportunities.",
+      href: "/marketplace",
+      badge: "Discover",
+    },
+    {
+      title: "Portfolio",
+      description: "Review current allocations, exposure and risk status.",
+      href: "/portfolio",
+      badge: "Monitor",
+    },
+    {
+      title: "Demo Center",
+      description: "Walk through the full investor workflow with sample data.",
+      href: "/demo",
+      badge: "Demo",
+    },
+    {
+      title: "Profile",
+      description: "Check your Supabase profile and platform role.",
+      href: "/profile",
+      badge: "Account",
+    },
   ],
   creator: [
-    { label: "Strategy Builder", href: "/strategy-builder" },
-    { label: "Marketplace", href: "/marketplace" },
-    { label: "Audit trail", href: "/system/audit" },
+    {
+      title: "Strategy Builder",
+      description: "Upload backtest evidence and prepare a strategy submission.",
+      href: "/strategy-builder",
+      badge: "Create",
+    },
+    {
+      title: "Marketplace",
+      description: "See how published strategies appear to investors.",
+      href: "/marketplace",
+      badge: "Publish",
+    },
+    {
+      title: "Demo Center",
+      description: "Review the platform flow from strategy to allocation.",
+      href: "/demo",
+      badge: "Demo",
+    },
+    {
+      title: "Profile",
+      description: "Check your creator profile and platform role.",
+      href: "/profile",
+      badge: "Account",
+    },
   ],
   admin: [
-    { label: "Admin Review", href: "/admin" },
-    { label: "Allocation Review", href: "/allocation-requests" },
-    { label: "Execution", href: "/execution" },
-    { label: "Storage", href: "/system/storage" },
-    { label: "Audit", href: "/system/audit" },
+    {
+      title: "Admin Review",
+      description: "Review submitted strategies and approve or reject listings.",
+      href: "/admin",
+      badge: "Review",
+    },
+    {
+      title: "Allocation Requests",
+      description: "Approve investor allocation requests before execution.",
+      href: "/allocation-requests",
+      badge: "Allocate",
+    },
+    {
+      title: "Execution Center",
+      description: "Prepare deployment packages and execution records.",
+      href: "/execution",
+      badge: "Execute",
+    },
+    {
+      title: "Storage Status",
+      description: "Check database/file-store mode and repository health.",
+      href: "/system/storage",
+      badge: "System",
+    },
+    {
+      title: "Demo Data Center",
+      description: "Seed or reset the current demo workflow data.",
+      href: "/system/demo-data",
+      badge: "Data",
+    },
+    {
+      title: "Audit Log",
+      description: "Review platform events and operational history.",
+      href: "/system/audit",
+      badge: "Audit",
+    },
   ],
 };
 
-export default function WorkspacePage() {
-  const [session, setSession] = useState<DemoSession | null>(null);
-  const [deniedPath, setDeniedPath] = useState("");
+const roleDescriptions: Record<UserRole, string> = {
+  investor:
+    "Investor workspace focused on strategy discovery, allocation requests and portfolio monitoring.",
+  creator:
+    "Creator workspace focused on uploading strategy evidence and preparing marketplace-ready listings.",
+  admin:
+    "Admin workspace focused on review, allocation, execution, system status and audit operations.",
+};
 
-  function loadSession() {
-    setSession(getStoredSession());
+export default function WorkspacePage() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const configured = hasSupabaseBrowserConfig();
+
+  const activeRole: UserRole = profile?.role ?? "investor";
+
+  const actions = useMemo(() => {
+    return workspaceActions[activeRole];
+  }, [activeRole]);
+
+  async function loadWorkspace(nextSession?: Session | null) {
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      if (!configured) {
+        setSession(null);
+        setProfile(null);
+        return;
+      }
+
+      const supabase = createSupabaseBrowserClient();
+
+      const activeSession =
+        nextSession ??
+        (await supabase.auth.getSession()).data.session ??
+        null;
+
+      setSession(activeSession);
+
+      if (!activeSession) {
+        setProfile(null);
+        return;
+      }
+
+      const response = await fetch("/api/auth/profile", {
+        headers: {
+          Authorization: `Bearer ${activeSession.access_token}`,
+        },
+        cache: "no-store",
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Profile lookup failed.");
+      }
+
+      setProfile(payload.data ?? null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Workspace load failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function syncProfile() {
+    setSyncing(true);
+    setMessage("");
+    setError("");
+
+    try {
+      if (!configured) {
+        throw new Error("Supabase browser config is missing.");
+      }
+
+      const supabase = createSupabaseBrowserClient();
+      const activeSession = (await supabase.auth.getSession()).data.session;
+
+      if (!activeSession) {
+        throw new Error("No active session.");
+      }
+
+      const metadataRole =
+        typeof activeSession.user.user_metadata?.role === "string"
+          ? activeSession.user.user_metadata.role
+          : "investor";
+
+      const response = await fetch("/api/auth/profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${activeSession.access_token}`,
+        },
+        body: JSON.stringify({
+          role: metadataRole,
+          displayName:
+            typeof activeSession.user.user_metadata?.display_name === "string"
+              ? activeSession.user.user_metadata.display_name
+              : activeSession.user.email,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Profile sync failed.");
+      }
+
+      setProfile(payload.data);
+      setMessage("Profile synced. Workspace updated.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Profile sync failed.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function signOut() {
+    setMessage("");
+    setError("");
+
+    try {
+      if (!configured) {
+        throw new Error("Supabase browser config is missing.");
+      }
+
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      setSession(null);
+      setProfile(null);
+      setMessage("Signed out.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Sign out failed.");
+    }
   }
 
   useEffect(() => {
-    loadSession();
+    loadWorkspace();
 
-    const params = new URLSearchParams(window.location.search);
-    setDeniedPath(params.get("denied") ?? "");
+    if (!configured) {
+      return;
+    }
 
-    window.addEventListener("ai-trader-session-change", loadSession);
-    window.addEventListener("storage", loadSession);
+    const supabase = createSupabaseBrowserClient();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      loadWorkspace(nextSession);
+    });
 
     return () => {
-      window.removeEventListener("ai-trader-session-change", loadSession);
-      window.removeEventListener("storage", loadSession);
+      subscription.unsubscribe();
     };
-  }, []);
-
-  function logout() {
-    clearSession();
-    setSession(null);
-    window.dispatchEvent(new Event("ai-trader-session-change"));
-  }
+  }, [configured]);
 
   return (
     <main className="min-h-screen bg-[#05070D] text-white">
@@ -67,175 +294,189 @@ export default function WorkspacePage() {
           <div className="grid gap-8 lg:grid-cols-[1fr_430px] lg:items-end">
             <div>
               <div className="mb-4 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
-                Role workspace
+                Role-aware Workspace
               </div>
 
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight md:text-6xl">
-                Your platform workspace.
+                Your StrataOS command center.
               </h1>
 
               <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-400 md:text-lg">
-                The workspace adapts to the current demo role and gives access
-                to the correct platform modules.
+                The workspace adapts to your Supabase profile role. Investors,
+                creators and admins see different operational paths.
               </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  href="/auth"
+                  className="rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300"
+                >
+                  Auth
+                </Link>
+
+                <Link
+                  href="/profile"
+                  className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.05]"
+                >
+                  Profile
+                </Link>
+
+                <button
+                  onClick={syncProfile}
+                  disabled={!session || syncing}
+                  className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-4 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {syncing ? "Syncing..." : "Sync profile"}
+                </button>
+              </div>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur">
-              <p className="text-sm text-zinc-500">Current session</p>
-              {session ? (
-                <>
-                  <h2 className="mt-2 text-2xl font-semibold">
-                    {roleLabels[session.role]}
-                  </h2>
-                  <p className="mt-2 text-sm text-zinc-400">{session.email}</p>
-                </>
-              ) : (
-                <>
-                  <h2 className="mt-2 text-2xl font-semibold">
-                    Not signed in
-                  </h2>
-                  <p className="mt-2 text-sm text-zinc-400">
-                    Choose a demo role to access protected modules.
-                  </p>
-                </>
+              <p className="text-sm text-zinc-500">Current access</p>
+
+              <p className="mt-3 text-3xl font-semibold">
+                {loading
+                  ? "Loading..."
+                  : profile
+                  ? activeRole
+                  : session
+                  ? "Profile missing"
+                  : "Not signed in"}
+              </p>
+
+              <div className="mt-5 space-y-3 text-sm">
+                <Row label="Config" value={configured ? "Ready" : "Missing"} />
+                <Row label="Session" value={session ? "Active" : "Missing"} />
+                <Row label="Profile" value={profile ? "Loaded" : "Missing"} />
+                <Row label="Role" value={profile?.role ?? "not assigned"} />
+              </div>
+
+              {session && (
+                <button
+                  onClick={signOut}
+                  className="mt-5 w-full rounded-2xl border border-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.05]"
+                >
+                  Sign out
+                </button>
+              )}
+
+              {message && (
+                <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-300">
+                  {message}
+                </div>
+              )}
+
+              {error && (
+                <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm leading-6 text-red-300">
+                  {error}
+                </div>
               )}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[1fr_420px] lg:px-8">
-        <div className="space-y-6">
-          {deniedPath && (
-            <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.06] p-6">
-              <p className="text-sm font-medium text-amber-300">
-                Access restricted
-              </p>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Your current role cannot access{" "}
-                <span className="font-mono text-zinc-300">{deniedPath}</span>.
-                Switch role if you need access.
-              </p>
-            </div>
-          )}
-
-          {session ? (
-            <>
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
-                <p className="text-sm text-zinc-500">Permissions</p>
-                <h2 className="mt-1 text-2xl font-semibold">
-                  {roleLabels[session.role]} capabilities
-                </h2>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  {rolePermissions[session.role].map((permission) => (
-                    <div
-                      key={permission}
-                      className="rounded-2xl border border-white/10 bg-black/20 p-5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-xs font-bold text-emerald-300">
-                          ✓
-                        </span>
-                        <p className="text-sm text-zinc-300">{permission}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
-                <p className="text-sm text-zinc-500">Quick actions</p>
-                <h2 className="mt-1 text-2xl font-semibold">
-                  Open role modules
-                </h2>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  {quickLinks[session.role].map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="rounded-2xl border border-white/10 bg-black/20 p-5 transition hover:border-emerald-400/40 hover:bg-white/[0.05]"
-                    >
-                      <p className="font-semibold text-white">{link.label}</p>
-                      <p className="mt-2 font-mono text-xs text-emerald-300">
-                        {link.href}
-                      </p>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-10 text-center">
-              <p className="text-2xl font-semibold">No active session</p>
-              <p className="mt-3 text-sm text-zinc-500">
-                Sign in as investor, creator or admin to continue.
-              </p>
-              <Link
-                href="/login"
-                className="mt-6 inline-flex rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300"
-              >
-                Go to login
-              </Link>
-            </div>
-          )}
-        </div>
-
-        <aside className="h-fit rounded-3xl border border-white/10 bg-white/[0.035] p-6 lg:sticky lg:top-6">
-          {session ? (
-            <>
-              <p className="text-sm text-zinc-500">Account</p>
-              <h3 className="mt-1 text-2xl font-semibold">{session.name}</h3>
-
-              <div className="mt-6 space-y-3 text-sm">
-                <Row label="Role" value={roleLabels[session.role]} />
-                <Row label="Email" value={session.email} />
-                <Row label="Home" value={roleHome[session.role]} />
-                <Row
-                  label="Signed in"
-                  value={new Date(session.createdAt).toLocaleString()}
-                />
-              </div>
-
-              <Link
-                href={roleHome[session.role]}
-                className="mt-6 block rounded-2xl bg-emerald-400 px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-emerald-300"
-              >
-                Open role home
-              </Link>
-
-              <button
-                onClick={logout}
-                className="mt-3 w-full rounded-2xl border border-white/10 px-5 py-4 text-center text-sm font-semibold text-white transition hover:bg-white/[0.05]"
-              >
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-zinc-500">Access</p>
-              <h3 className="mt-1 text-2xl font-semibold">Choose role</h3>
-
-              <Link
-                href="/login"
-                className="mt-6 block rounded-2xl bg-emerald-400 px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-emerald-300"
-              >
-                Login
-              </Link>
-            </>
-          )}
-
-          <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-5">
-            <p className="text-sm font-medium text-amber-300">
-              Production note
+      <section className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
+        {!session && (
+          <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.06] p-6">
+            <p className="text-lg font-semibold text-amber-300">
+              Sign in required
             </p>
-            <p className="mt-3 text-xs leading-5 text-zinc-500">
-              Replace this local role session with Supabase Auth or another
-              production identity provider before real users.
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
+              Sign in through Supabase Auth to load your role-aware workspace.
             </p>
+
+            <Link
+              href="/auth"
+              className="mt-5 inline-flex rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300"
+            >
+              Go to Auth
+            </Link>
           </div>
-        </aside>
+        )}
+
+        {session && !profile && !loading && (
+          <div className="rounded-3xl border border-blue-500/20 bg-blue-500/[0.06] p-6">
+            <p className="text-lg font-semibold text-blue-300">
+              Session found, profile not synced yet
+            </p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
+              Sync your profile once to create the matching profiles table row.
+            </p>
+
+            <button
+              onClick={syncProfile}
+              disabled={syncing}
+              className="mt-5 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:opacity-50"
+            >
+              {syncing ? "Syncing..." : "Sync profile"}
+            </button>
+          </div>
+        )}
+
+        {profile && (
+          <>
+            <div className="mb-6 rounded-3xl border border-white/10 bg-white/[0.035] p-6">
+              <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+                <div>
+                  <p className="text-sm text-zinc-500">Workspace mode</p>
+                  <h2 className="mt-2 text-3xl font-semibold">
+                    {activeRole.toUpperCase()} dashboard
+                  </h2>
+                  <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
+                    {roleDescriptions[activeRole]}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                  <p className="text-xs text-zinc-500">Signed in as</p>
+                  <p className="mt-2 truncate text-lg font-semibold">
+                    {profile.email}
+                  </p>
+                  <p className="mt-3 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                    role: {profile.role}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {actions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="group rounded-3xl border border-white/10 bg-white/[0.035] p-6 transition hover:border-emerald-400/40 hover:bg-white/[0.055]"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-xl font-semibold">{action.title}</p>
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+                      {action.badge}
+                    </span>
+                  </div>
+
+                  <p className="mt-4 min-h-[48px] text-sm leading-6 text-zinc-500">
+                    {action.description}
+                  </p>
+
+                  <p className="mt-6 font-mono text-xs text-emerald-300 transition group-hover:text-emerald-200">
+                    {action.href}
+                  </p>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-8 rounded-3xl border border-blue-500/20 bg-blue-500/[0.06] p-6">
+              <p className="text-sm font-semibold text-blue-300">
+                Next security phase
+              </p>
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-zinc-400">
+                This page changes the user interface based on profile role. The
+                next step is server-side API protection, so restricted actions
+                cannot be executed by unauthorized users.
+              </p>
+            </div>
+          </>
+        )}
       </section>
     </main>
   );
