@@ -78,6 +78,39 @@ const endpoints = [
   },
 ];
 
+const adminProtectionChecks = [
+  {
+    label: "Portfolio risk mode changes",
+    route: "POST /api/portfolio/risk-mode",
+    status: "Admin-only",
+  },
+  {
+    label: "Execution deployment packages",
+    route: "POST /api/execution/deploy",
+    status: "Admin-only",
+  },
+  {
+    label: "Strategy approval decisions",
+    route: "PATCH /api/admin/submissions/[id]",
+    status: "Admin-only",
+  },
+  {
+    label: "Allocation approval decisions",
+    route: "PATCH /api/allocation-requests/[id]",
+    status: "Admin-only",
+  },
+  {
+    label: "Admin submission queue",
+    route: "GET /api/admin/submissions",
+    status: "Admin-only",
+  },
+  {
+    label: "Allocation request queue",
+    route: "GET /api/allocation-requests",
+    status: "Admin-only",
+  },
+];
+
 const systemCards: SystemCard[] = [
   {
     label: "Storage",
@@ -352,6 +385,38 @@ export default function SystemPage() {
                     {card.description}
                   </p>
                 </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
+            <p className="text-sm text-zinc-500">Access control</p>
+            <h2 className="mt-1 text-2xl font-semibold">
+              Admin API Protection
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+              Critical review, risk and execution endpoints now require a valid
+              Supabase session with admin authorization.
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {adminProtectionChecks.map((check) => (
+                <div
+                  key={check.route}
+                  className="rounded-3xl border border-emerald-500/20 bg-emerald-500/[0.06] p-5"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="font-semibold text-white">{check.label}</p>
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+                      {check.status}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 font-mono text-xs text-zinc-500">
+                    {check.route}
+                  </p>
+                </div>
               ))}
             </div>
           </div>
