@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { RiskCompatibilityCard } from "../../../components/risk-compatibility-card";
 
 type MarketplaceStrategy = {
   id: string;
@@ -192,6 +193,12 @@ export default function AllocationRequestPage({
           </div>
         </div>
       </section>
+
+      {strategyId && (
+        <section className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
+          <RiskCompatibilityCard strategyId={strategyId} />
+        </section>
+      )}
 
       <section className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[1fr_420px] lg:px-8">
         <form
