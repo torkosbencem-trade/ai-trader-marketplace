@@ -12,6 +12,7 @@ const navItems = [
   { label: "Marketplace", href: "/marketplace" },
   { label: "Builder", href: "/strategy-builder" },
   { label: "Admin", href: "/admin" },
+  { label: "Admin Risk", href: "/admin/risk" },
   { label: "Allocations", href: "/allocation-requests" },
   { label: "Execution", href: "/execution" },
   { label: "Portfolio", href: "/portfolio" },
