@@ -7,6 +7,7 @@ const navItems = [
   { label: "Auth", href: "/auth" },
   { label: "Profile", href: "/profile" },
   { label: "Onboarding", href: "/onboarding" },
+  { label: "Risk Check", href: "/risk-check" },
   { label: "Readiness", href: "/readiness" },
   { label: "Marketplace", href: "/marketplace" },
   { label: "Builder", href: "/strategy-builder" },
