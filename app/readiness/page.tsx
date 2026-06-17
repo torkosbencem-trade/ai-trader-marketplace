@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  createSupabaseBrowserClient,
+  hasSupabaseBrowserConfig,
+} from "../../lib/supabase-browser";
 
 type ReadinessStats = {
   submissions: number;
@@ -11,13 +15,41 @@ type ReadinessStats = {
   deployments: number;
   auditEvents: number;
   storageProvider: string;
-  migrationReady: boolean;
+  databaseActive: boolean;
+  riskMode: string;
 };
 
-const readinessGroups = [
+type ReadinessStatus = "ready" | "partial" | "pending" | "blocked" | "planned";
+
+type ReadinessItem = {
+  label: string;
+  status: ReadinessStatus;
+  detail: string;
+};
+
+type ReadinessGroup = {
+  title: string;
+  description: string;
+  items: ReadinessItem[];
+};
+
+async function getAccessToken() {
+  if (!hasSupabaseBrowserConfig()) {
+    return null;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
+
+const readinessGroups: ReadinessGroup[] = [
   {
     title: "Core platform workflow",
-    description: "The main marketplace and allocation lifecycle.",
+    description: "The main marketplace, review, allocation and portfolio lifecycle.",
     items: [
       {
         label: "Strategy Builder",
@@ -27,135 +59,135 @@ const readinessGroups = [
       {
         label: "Admin Review",
         status: "ready",
-        detail: "Submitted strategies can be approved or rejected.",
+        detail: "Submitted strategies can be approved or rejected by admin users.",
       },
       {
         label: "Marketplace",
         status: "ready",
-        detail: "Approved strategies appear in the marketplace and report pages.",
+        detail: "Approved strategies appear in marketplace and report pages.",
       },
       {
         label: "Allocation Requests",
         status: "ready",
-        detail: "Investors can request allocation access.",
+        detail: "Investors can request allocation access from strategy reports.",
       },
       {
         label: "Execution Preparation",
         status: "ready",
-        detail: "Approved allocation requests can become deployment packages.",
+        detail: "Approved allocation requests can become paper deployment packages.",
       },
       {
         label: "Portfolio Allocation",
         status: "ready",
-        detail: "Prepared deployments appear in the portfolio view.",
+        detail: "Prepared deployments appear in portfolio view.",
       },
     ],
   },
   {
-    title: "Production infrastructure",
-    description: "Required foundation before real users or online production.",
+    title: "Infrastructure and identity",
+    description: "Persistence, authentication and role-aware access control.",
     items: [
       {
         label: "Repository Layer",
         status: "ready",
-        detail: "Storage abstraction exists and is database-migration ready.",
+        detail: "Storage abstraction is active across submissions, allocations, deployments and audit events.",
       },
       {
-        label: "Database",
+        label: "Supabase Database",
+        status: "ready",
+        detail: "Database-backed persistence is available through the repository adapter.",
+      },
+      {
+        label: "Supabase Auth",
+        status: "ready",
+        detail: "Real Supabase sign-in, sign-up and session handling are implemented.",
+      },
+      {
+        label: "Profiles and Roles",
+        status: "ready",
+        detail: "Profiles support investor, creator and admin roles with ADMIN_EMAILS admin resolution.",
+      },
+      {
+        label: "Server-side Admin Guard",
+        status: "ready",
+        detail: "Critical admin, risk and execution APIs require bearer-token admin authorization.",
+      },
+      {
+        label: "Route Middleware",
         status: "pending",
-        detail: "Currently still using local JSON file-store. Needs PostgreSQL/Supabase/Neon.",
-      },
-      {
-        label: "Authentication",
-        status: "pending",
-        detail: "Demo login exists, but production requires secure server-side auth.",
-      },
-      {
-        label: "Role Authorization",
-        status: "partial",
-        detail: "Role concept exists, but middleware was disabled for stability.",
-      },
-      {
-        label: "Deployment Hosting",
-        status: "pending",
-        detail: "Needs Vercel or equivalent production environment.",
-      },
-      {
-        label: "Monitoring",
-        status: "pending",
-        detail: "Needs error tracking, uptime monitoring and structured logs.",
+        detail: "Middleware route protection remains disabled until the auth flow is stable enough for full route gating.",
       },
     ],
   },
   {
-    title: "Trading operations",
-    description: "Required before real broker connection or capital handling.",
+    title: "Risk and execution controls",
+    description: "Suitability, firewall checks and paper-only execution protection.",
     items: [
       {
-        label: "Paper Execution",
-        status: "partial",
-        detail: "Deployment preparation exists, but paper broker connection is not live yet.",
+        label: "Risk Compatibility Engine",
+        status: "ready",
+        detail: "User risk profile and strategy risk are compared through a shared compatibility engine.",
+      },
+      {
+        label: "Allocation Risk Firewall",
+        status: "ready",
+        detail: "Not-aligned allocation requests are blocked server-side.",
+      },
+      {
+        label: "Execution Firewall",
+        status: "ready",
+        detail: "Execution package creation checks allocation approval, risk state, strategy approval and limits.",
+      },
+      {
+        label: "Portfolio Risk Mode",
+        status: "ready",
+        detail: "Normal, Reduced and Paused modes are supported; Paused blocks deployments.",
+      },
+      {
+        label: "Admin Risk Console",
+        status: "ready",
+        detail: "Admins can monitor and change portfolio risk mode from /admin/risk.",
       },
       {
         label: "Live Broker Execution",
         status: "blocked",
-        detail: "No live broker API should be connected before security and compliance.",
-      },
-      {
-        label: "Risk Engine",
-        status: "partial",
-        detail: "Basic guardrail fields exist. Needs real-time enforcement.",
-      },
-      {
-        label: "Audit Trail",
-        status: "ready",
-        detail: "Workflow actions are written to audit log.",
-      },
-      {
-        label: "Compliance Layer",
-        status: "blocked",
-        detail: "Disclaimers, suitability, terms and legal review are required.",
-      },
-      {
-        label: "Capital Handling",
-        status: "blocked",
-        detail: "The platform must not handle real money in current MVP state.",
+        detail: "Live execution is intentionally disabled. Only paper deployment packages are allowed.",
       },
     ],
   },
   {
-    title: "Mobile readiness",
-    description: "Prerequisites before building the phone app.",
+    title: "Governance and hardening",
+    description: "Operational controls required before real users or capital exposure.",
     items: [
       {
-        label: "Shared API Layer",
-        status: "partial",
-        detail: "Core APIs exist and can later serve a mobile app.",
+        label: "Audit Trail",
+        status: "ready",
+        detail: "Risk mode changes, deployment attempts and workflow events are written to the audit log.",
       },
       {
-        label: "Stable Auth",
+        label: "Protected Approval APIs",
+        status: "ready",
+        detail: "Strategy review and allocation review mutation endpoints are admin-only.",
+      },
+      {
+        label: "Protected Admin Reads",
+        status: "ready",
+        detail: "Admin submission and allocation queues require admin authorization.",
+      },
+      {
+        label: "Dedicated Portfolio Settings Table",
         status: "pending",
-        detail: "Mobile app should start after production auth is implemented.",
+        detail: "Portfolio risk mode is currently derived from audit history; a dedicated settings table should replace this later.",
       },
       {
-        label: "Database Backend",
+        label: "Monitoring",
         status: "pending",
-        detail: "Mobile app should not be built on local file-store.",
+        detail: "Production needs uptime checks, structured logs and error tracking.",
       },
       {
-        label: "Investor Mobile Flow",
-        status: "planned",
-        detail: "Marketplace, strategy reports, allocation request and portfolio view.",
-      },
-      {
-        label: "Push Notifications",
-        status: "planned",
-        detail: "Useful later for approvals, deployment and risk events.",
-      },
-      {
-        label: "App Store Readiness",
-        status: "planned",
-        detail: "Requires compliance, privacy policy and production backend.",
+        label: "Legal and Compliance Review",
+        status: "blocked",
+        detail: "Disclaimers, suitability language, terms, privacy policy and legal review are required before real trading.",
       },
     ],
   },
@@ -164,27 +196,27 @@ const readinessGroups = [
 const launchPhases = [
   {
     phase: "Phase 1",
-    title: "Polished online demo",
-    timeline: "Next",
+    title: "Controlled online demo",
+    timeline: "Current target",
     status: "closest",
     description:
-      "Deploy a controlled demo online with file-store or temporary database, clear warnings and no real trading.",
+      "A polished, database-backed, paper-only platform demo with auth, admin guards, risk controls and audit trail.",
   },
   {
     phase: "Phase 2",
-    title: "Closed MVP",
-    timeline: "After database + auth",
+    title: "Closed beta MVP",
+    timeline: "After route protection + monitoring",
     status: "planned",
     description:
-      "Use real users in a controlled test environment with PostgreSQL, auth, roles and audit history.",
+      "Invite controlled users with role-based access, stable onboarding and monitored production infrastructure.",
   },
   {
     phase: "Phase 3",
-    title: "Mobile MVP",
-    timeline: "After stable backend",
+    title: "Broker read-only integration",
+    timeline: "After security hardening",
     status: "planned",
     description:
-      "Build investor-focused React Native / Expo app using the same backend APIs.",
+      "Connect read-only broker/account data before any execution permissions are considered.",
   },
   {
     phase: "Phase 4",
@@ -192,7 +224,7 @@ const launchPhases = [
     timeline: "Later",
     status: "blocked",
     description:
-      "Requires broker integration, legal review, security hardening, compliance and operational monitoring.",
+      "Requires broker safety layer, legal review, compliance, monitoring, kill-switches and operational controls.",
   },
 ];
 
@@ -204,8 +236,9 @@ export default function ProductionReadinessPage() {
     approvedAllocations: 0,
     deployments: 0,
     auditEvents: 0,
-    storageProvider: "file-store",
-    migrationReady: false,
+    storageProvider: "unknown",
+    databaseActive: false,
+    riskMode: "Normal",
   });
 
   const [loading, setLoading] = useState(true);
@@ -216,18 +249,31 @@ export default function ProductionReadinessPage() {
     setError("");
 
     try {
+      const token = await getAccessToken();
+
+      const allocationHeaders = token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined;
+
       const [
         submissionsResponse,
         allocationResponse,
         deploymentsResponse,
         auditResponse,
         storageResponse,
+        riskModeResponse,
       ] = await Promise.all([
         fetch("/api/strategy-submissions", { cache: "no-store" }),
-        fetch("/api/allocation-requests", { cache: "no-store" }),
+        fetch("/api/allocation-requests", {
+          cache: "no-store",
+          headers: allocationHeaders,
+        }),
         fetch("/api/deployments", { cache: "no-store" }),
         fetch("/api/audit-log", { cache: "no-store" }),
         fetch("/api/system/storage", { cache: "no-store" }),
+        fetch("/api/portfolio/risk-mode", { cache: "no-store" }),
       ]);
 
       const [
@@ -236,18 +282,27 @@ export default function ProductionReadinessPage() {
         deploymentsPayload,
         auditPayload,
         storagePayload,
+        riskModePayload,
       ] = await Promise.all([
         submissionsResponse.json(),
         allocationResponse.json(),
         deploymentsResponse.json(),
         auditResponse.json(),
         storageResponse.json(),
+        riskModeResponse.json(),
       ]);
 
       const submissions = submissionsPayload.data ?? [];
-      const allocationRequests = allocationPayload.data ?? [];
+      const allocationRequests = allocationResponse.ok
+        ? allocationPayload.data ?? []
+        : [];
       const deployments = deploymentsPayload.data ?? [];
       const auditEvents = auditPayload.data ?? [];
+
+      const activeStorageProvider =
+        storagePayload.data?.activeStorageProvider ??
+        storagePayload.data?.configuredStorageProvider ??
+        "unknown";
 
       setStats({
         submissions: submissions.length,
@@ -260,12 +315,16 @@ export default function ProductionReadinessPage() {
         ).length,
         deployments: deployments.length,
         auditEvents: auditEvents.length,
-        storageProvider:
-          storagePayload.data?.activeStorageProvider ??
-          storagePayload.data?.configuredStorageProvider ??
-          "file-store",
-        migrationReady: Boolean(storagePayload.data?.migrationReady),
+        storageProvider: activeStorageProvider,
+        databaseActive: activeStorageProvider === "database",
+        riskMode: riskModePayload.data?.riskMode ?? "Normal",
       });
+
+      if (!allocationResponse.ok && allocationResponse.status === 401) {
+        setError(
+          "Admin session required for allocation readiness stats. Sign in as admin for full readiness data."
+        );
+      }
     } catch (error) {
       setError(
         error instanceof Error
@@ -282,34 +341,27 @@ export default function ProductionReadinessPage() {
   }, []);
 
   const readinessScore = useMemo(() => {
-    let score = 35;
+    let score = 45;
 
-    if (stats.submissions > 0) score += 8;
-    if (stats.approvedSubmissions > 0) score += 8;
-    if (stats.allocationRequests > 0) score += 8;
-    if (stats.approvedAllocations > 0) score += 8;
-    if (stats.deployments > 0) score += 8;
+    if (stats.databaseActive) score += 10;
+    if (stats.submissions > 0) score += 5;
+    if (stats.approvedSubmissions > 0) score += 5;
+    if (stats.allocationRequests > 0) score += 5;
+    if (stats.approvedAllocations > 0) score += 5;
+    if (stats.deployments > 0) score += 5;
     if (stats.auditEvents > 0) score += 5;
-    if (stats.migrationReady) score += 10;
 
-    return Math.min(score, 90);
+    score += 15;
+
+    return Math.min(score, 92);
   }, [stats]);
 
-  const readyItems = readinessGroups
-    .flatMap((group) => group.items)
-    .filter((item) => item.status === "ready").length;
+  const allItems = readinessGroups.flatMap((group) => group.items);
 
-  const partialItems = readinessGroups
-    .flatMap((group) => group.items)
-    .filter((item) => item.status === "partial").length;
-
-  const pendingItems = readinessGroups
-    .flatMap((group) => group.items)
-    .filter((item) => item.status === "pending").length;
-
-  const blockedItems = readinessGroups
-    .flatMap((group) => group.items)
-    .filter((item) => item.status === "blocked").length;
+  const readyItems = allItems.filter((item) => item.status === "ready").length;
+  const partialItems = allItems.filter((item) => item.status === "partial").length;
+  const pendingItems = allItems.filter((item) => item.status === "pending").length;
+  const blockedItems = allItems.filter((item) => item.status === "blocked").length;
 
   return (
     <main className="min-h-screen bg-[#05070D] text-white">
@@ -322,279 +374,218 @@ export default function ProductionReadinessPage() {
               </div>
 
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight md:text-6xl">
-                What is ready, what is demo-only, and what blocks production.
+                Paper-only trading infrastructure readiness.
               </h1>
 
               <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-400 md:text-lg">
-                This page gives a realistic readiness view for the AI Trader
-                Marketplace MVP. The workflow is working, but real production
-                trading still requires database, auth, compliance, security and
-                broker hardening.
+                Tracks what is already production-like, what remains blocked,
+                and what must be hardened before real users, broker data or
+                capital exposure.
               </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/demo"
-                  className="rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300"
-                >
-                  Open demo center
-                </Link>
-
-                <Link
-                  href="/system/storage"
-                  className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.05]"
-                >
-                  Storage readiness
-                </Link>
-
-                <button
-                  onClick={loadReadinessStats}
-                  className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-4 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
-                >
-                  Refresh
-                </button>
-              </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur">
-              <div className="flex items-end justify-between gap-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur">
+              <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-sm text-zinc-500">Demo readiness</p>
-                  <p className="mt-2 text-5xl font-semibold">
+                  <p className="text-sm text-zinc-500">Readiness score</p>
+                  <p className="mt-2 text-6xl font-semibold text-emerald-300">
                     {loading ? "..." : `${readinessScore}%`}
                   </p>
                 </div>
 
-                <div className="text-right">
-                  <p className="text-sm text-zinc-500">Production trading</p>
-                  <p className="mt-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300">
-                    Not ready
-                  </p>
-                </div>
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
+                  Paper-only
+                </span>
               </div>
 
-              <div className="mt-5 h-2 rounded-full bg-white/10">
-                <div
-                  className="h-2 rounded-full bg-emerald-400"
-                  style={{ width: `${readinessScore}%` }}
-                />
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <Metric label="Ready" value={String(readyItems)} positive />
+                <Metric label="Pending" value={String(pendingItems)} />
+                <Metric label="Blocked" value={String(blockedItems)} />
+                <Metric label="Risk mode" value={stats.riskMode} />
               </div>
-
-              <p className="mt-4 text-xs leading-5 text-zinc-500">
-                This score describes demo maturity, not permission to trade live.
-                Live trading is blocked until production controls are complete.
-              </p>
             </div>
           </div>
-
-          {error && (
-            <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-              {error}
-            </div>
-          )}
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Ready" value={String(readyItems)} tone="green" />
-          <Metric label="Partial" value={String(partialItems)} tone="blue" />
-          <Metric label="Pending" value={String(pendingItems)} tone="amber" />
-          <Metric label="Blocked" value={String(blockedItems)} tone="red" />
-        </div>
+      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[1fr_400px] lg:px-8">
+        <div className="space-y-6">
+          {error && (
+            <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.06] p-5 text-sm leading-6 text-amber-300">
+              {error}
+            </div>
+          )}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Submissions" value={String(stats.submissions)} />
-          <Metric
-            label="Approved strategies"
-            value={String(stats.approvedSubmissions)}
-          />
-          <Metric label="Deployments" value={String(stats.deployments)} />
-          <Metric label="Audit events" value={String(stats.auditEvents)} />
-        </div>
+          {readinessGroups.map((group) => (
+            <div
+              key={group.title}
+              className="rounded-3xl border border-white/10 bg-white/[0.035] p-6"
+            >
+              <p className="text-sm text-zinc-500">{group.description}</p>
+              <h2 className="mt-1 text-2xl font-semibold">{group.title}</h2>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_410px]">
-          <div className="space-y-6">
-            {readinessGroups.map((group) => (
-              <div
-                key={group.title}
-                className="rounded-3xl border border-white/10 bg-white/[0.035] p-6"
-              >
-                <p className="text-sm text-zinc-500">{group.description}</p>
-                <h2 className="mt-1 text-2xl font-semibold">{group.title}</h2>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  {group.items.map((item) => (
-                    <div
-                      key={`${group.title}-${item.label}`}
-                      className="rounded-2xl border border-white/10 bg-black/20 p-5"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-semibold text-white">
-                            {item.label}
-                          </p>
-                          <p className="mt-2 text-sm leading-6 text-zinc-500">
-                            {item.detail}
-                          </p>
-                        </div>
-
-                        <span className={statusClass(item.status)}>
-                          {item.status}
-                        </span>
-                      </div>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {group.items.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-3xl border border-white/10 bg-black/20 p-5"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="font-semibold text-white">{item.label}</p>
+                      <span className={statusClass(item.status)}>
+                        {item.status}
+                      </span>
                     </div>
-                  ))}
-                </div>
+
+                    <p className="mt-3 text-sm leading-6 text-zinc-500">
+                      {item.detail}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
 
-          <aside className="h-fit rounded-3xl border border-white/10 bg-white/[0.035] p-6 lg:sticky lg:top-6">
-            <p className="text-sm text-zinc-500">Launch plan</p>
-            <h3 className="mt-1 text-2xl font-semibold">Recommended phases</h3>
+          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
+            <p className="text-sm text-zinc-500">Launch sequence</p>
+            <h2 className="mt-1 text-2xl font-semibold">Release phases</h2>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 grid gap-4">
               {launchPhases.map((phase) => (
                 <div
                   key={phase.phase}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-5"
+                  className="rounded-3xl border border-white/10 bg-black/20 p-5"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <p className="text-xs text-zinc-500">{phase.phase}</p>
-                      <p className="mt-1 font-semibold text-white">
+                      <p className="text-sm text-zinc-500">{phase.phase} · {phase.timeline}</p>
+                      <h3 className="mt-1 text-xl font-semibold text-white">
                         {phase.title}
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-zinc-500">
+                        {phase.description}
                       </p>
                     </div>
 
-                    <span className={phaseClass(phase.status)}>
-                      {phase.timeline}
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-400">
+                      {phase.status}
                     </span>
                   </div>
-
-                  <p className="mt-4 text-sm leading-6 text-zinc-500">
-                    {phase.description}
-                  </p>
                 </div>
               ))}
             </div>
-
-            <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-5">
-              <p className="text-sm font-medium text-emerald-300">
-                Best next step
-              </p>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Prepare the app for online deployment, then connect Supabase
-                PostgreSQL and production authentication.
-              </p>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-5">
-              <p className="text-sm font-medium text-red-300">
-                Current production blocker
-              </p>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                The app must not handle live capital or execute real trades
-                until legal, compliance, security and broker controls are
-                implemented.
-              </p>
-            </div>
-
-            <div className="mt-6 grid gap-3">
-              <Link
-                href="/demo"
-                className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-emerald-400/40 hover:bg-white/[0.05]"
-              >
-                <p className="text-sm font-semibold text-white">Demo Center</p>
-                <p className="mt-2 font-mono text-xs text-emerald-300">
-                  /demo
-                </p>
-              </Link>
-
-              <Link
-                href="/system/storage"
-                className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-emerald-400/40 hover:bg-white/[0.05]"
-              >
-                <p className="text-sm font-semibold text-white">
-                  Storage Readiness
-                </p>
-                <p className="mt-2 font-mono text-xs text-emerald-300">
-                  /system/storage
-                </p>
-              </Link>
-
-              <Link
-                href="/system/audit"
-                className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-emerald-400/40 hover:bg-white/[0.05]"
-              >
-                <p className="text-sm font-semibold text-white">Audit Log</p>
-                <p className="mt-2 font-mono text-xs text-emerald-300">
-                  /system/audit
-                </p>
-              </Link>
-            </div>
-          </aside>
+          </div>
         </div>
+
+        <aside className="h-fit space-y-6 lg:sticky lg:top-6">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
+            <p className="text-sm text-zinc-500">Live platform stats</p>
+            <h3 className="mt-1 text-2xl font-semibold">Current data state</h3>
+
+            <div className="mt-6 space-y-3 text-sm">
+              <Row label="Storage provider" value={stats.storageProvider} />
+              <Row label="Database active" value={stats.databaseActive ? "Yes" : "No"} />
+              <Row label="Submissions" value={String(stats.submissions)} />
+              <Row label="Approved strategies" value={String(stats.approvedSubmissions)} />
+              <Row label="Allocation requests" value={String(stats.allocationRequests)} />
+              <Row label="Approved allocations" value={String(stats.approvedAllocations)} />
+              <Row label="Deployments" value={String(stats.deployments)} />
+              <Row label="Audit events" value={String(stats.auditEvents)} />
+            </div>
+
+            <button
+              onClick={loadReadinessStats}
+              className="mt-6 w-full rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-4 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
+            >
+              Refresh readiness
+            </button>
+          </div>
+
+          <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.06] p-6">
+            <p className="text-sm text-amber-300">Important limitation</p>
+            <h3 className="mt-1 text-2xl font-semibold text-white">
+              Not ready for real trading
+            </h3>
+            <p className="mt-4 text-sm leading-6 text-zinc-300">
+              The platform is suitable as a controlled paper-only demo. It must
+              not connect to live broker execution or handle real capital until
+              legal, compliance, monitoring, route protection and broker safety
+              layers are complete.
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-6">
+            <p className="text-sm text-zinc-500">Fast links</p>
+            <div className="mt-5 grid gap-3">
+              <QuickLink href="/system" label="System Dashboard" />
+              <QuickLink href="/admin/risk" label="Admin Risk Console" />
+              <QuickLink href="/system/storage" label="Storage Status" />
+              <QuickLink href="/execution" label="Execution Center" />
+              <QuickLink href="/system/audit" label="Audit Log" />
+            </div>
+          </div>
+        </aside>
       </section>
     </main>
   );
 }
 
+function statusClass(status: ReadinessStatus) {
+  if (status === "ready") {
+    return "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs capitalize text-emerald-300";
+  }
+
+  if (status === "partial") {
+    return "rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs capitalize text-amber-300";
+  }
+
+  if (status === "blocked") {
+    return "rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs capitalize text-red-300";
+  }
+
+  return "rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs capitalize text-zinc-400";
+}
+
 function Metric({
   label,
   value,
-  tone = "neutral",
+  positive = false,
 }: {
   label: string;
   value: string;
-  tone?: "neutral" | "green" | "blue" | "amber" | "red";
+  positive?: boolean;
 }) {
-  const toneClass =
-    tone === "green"
-      ? "text-emerald-300"
-      : tone === "blue"
-      ? "text-blue-300"
-      : tone === "amber"
-      ? "text-amber-300"
-      : tone === "red"
-      ? "text-red-300"
-      : "text-white";
-
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
       <p className="text-xs text-zinc-500">{label}</p>
-      <p className={`mt-3 truncate text-3xl font-semibold ${toneClass}`}>
+      <p
+        className={`mt-2 text-2xl font-semibold ${
+          positive ? "text-emerald-300" : "text-white"
+        }`}
+      >
         {value}
       </p>
     </div>
   );
 }
 
-function statusClass(status: string) {
-  if (status === "ready") {
-    return "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300";
-  }
-
-  if (status === "partial") {
-    return "rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300";
-  }
-
-  if (status === "pending") {
-    return "rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300";
-  }
-
-  return "rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300";
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+      <span className="text-zinc-500">{label}</span>
+      <span className="text-right font-medium text-white">{value}</span>
+    </div>
+  );
 }
 
-function phaseClass(status: string) {
-  if (status === "closest") {
-    return "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300";
-  }
-
-  if (status === "planned") {
-    return "rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300";
-  }
-
-  return "rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300";
+function QuickLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.05]"
+    >
+      {label}
+    </Link>
+  );
 }
