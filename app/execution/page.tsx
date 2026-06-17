@@ -6,6 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 type ReviewStatus = "Pending" | "Approved" | "Rejected";
 type DeploymentMode = "Paper" | "Live";
 
+type FirewallCheck = {
+  passed: boolean;
+  code: string;
+  message: string;
+};
+
 type AllocationRequest = {
   id: string;
   strategyId: string;
@@ -60,6 +66,7 @@ export default function ExecutionPage() {
   const [deploymentMessage, setDeploymentMessage] = useState("");
   const [deploymentError, setDeploymentError] = useState("");
   const [deploymentPayload, setDeploymentPayload] = useState("");
+  const [firewallChecks, setFirewallChecks] = useState<FirewallCheck[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   async function loadApprovedRequests() {
@@ -124,8 +131,8 @@ export default function ExecutionPage() {
       return "Review";
     }
 
-    if (Number(maxAllocation) > Number(selectedRequest.requestedCapital)) {
-      return "Review";
+    if (Number(maxAllocation) < Number(selectedRequest.requestedCapital)) {
+      return "Blocked";
     }
 
     if (Number(maxDrawdown) > 15 || Number(dailyLossLimit) > 5) {
@@ -141,6 +148,77 @@ export default function ExecutionPage() {
     dailyLossLimit,
   ]);
 
+  const executionFirewallPreview = useMemo<FirewallCheck[]>(() => {
+    const checks: FirewallCheck[] = [];
+
+    checks.push({
+      passed: Boolean(selectedRequest),
+      code: "allocation_selected",
+      message: selectedRequest
+        ? "Approved allocation request selected."
+        : "No approved allocation request selected.",
+    });
+
+    checks.push({
+      passed: selectedRequest?.status === "Approved",
+      code: "allocation_approved",
+      message:
+        selectedRequest?.status === "Approved"
+          ? "Allocation request is Approved."
+          : "Allocation request must be Approved.",
+    });
+
+    checks.push({
+      passed: Boolean(selectedRequest?.riskAcknowledgement),
+      code: "risk_acknowledgement",
+      message: selectedRequest?.riskAcknowledgement
+        ? "Investor accepted risk acknowledgement."
+        : "Risk acknowledgement is missing.",
+    });
+
+    checks.push({
+      passed: deploymentMode === "Paper",
+      code: "paper_only",
+      message:
+        deploymentMode === "Paper"
+          ? "Paper deployment mode selected."
+          : "Live deployment is disabled for now.",
+    });
+
+    checks.push({
+      passed:
+        Boolean(selectedRequest) &&
+        Number(maxAllocation) >= Number(selectedRequest?.requestedCapital ?? 0),
+      code: "allocation_limit",
+      message:
+        selectedRequest &&
+        Number(maxAllocation) >= Number(selectedRequest.requestedCapital)
+          ? "Max allocation covers requested capital."
+          : "Max allocation must be greater than or equal to requested capital.",
+    });
+
+    checks.push({
+      passed: Number(maxDrawdown) <= 15 && Number(dailyLossLimit) <= 5,
+      code: "risk_guardrails",
+      message:
+        Number(maxDrawdown) <= 15 && Number(dailyLossLimit) <= 5
+          ? "Drawdown and daily loss guardrails are within limits."
+          : "Guardrails require additional review.",
+    });
+
+    return checks;
+  }, [
+    selectedRequest,
+    deploymentMode,
+    maxAllocation,
+    maxDrawdown,
+    dailyLossLimit,
+  ]);
+
+  const firewallBlocked = executionFirewallPreview.some(
+    (check) => !check.passed
+  );
+
   async function prepareDeployment() {
     if (!selectedRequest) {
       setDeploymentError("No approved allocation request selected.");
@@ -151,6 +229,7 @@ export default function ExecutionPage() {
     setDeploymentMessage("");
     setDeploymentError("");
     setDeploymentPayload("");
+    setFirewallChecks([]);
 
     try {
       const response = await fetch("/api/execution/deploy", {
@@ -176,6 +255,7 @@ export default function ExecutionPage() {
       const payload = await response.json();
 
       if (!response.ok) {
+        setFirewallChecks(payload.data?.checks ?? []);
         throw new Error(payload.error ?? "Deployment preparation failed.");
       }
 
@@ -183,6 +263,7 @@ export default function ExecutionPage() {
         payload.message ?? "Deployment package prepared successfully."
       );
 
+      setFirewallChecks(payload.meta?.firewallChecks ?? []);
       setDeploymentPayload(JSON.stringify(payload.data, null, 2));
     } catch (error) {
       setDeploymentError(
@@ -459,9 +540,75 @@ export default function ExecutionPage() {
                 </div>
               )}
 
+              <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      Execution Firewall Preview
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Local pre-check before the API creates a deployment package.
+                    </p>
+                  </div>
+
+                  <span
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      firewallBlocked
+                        ? "border-red-500/30 bg-red-500/10 text-red-300"
+                        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                    }`}
+                  >
+                    {firewallBlocked ? "Blocked" : "Passed"}
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {executionFirewallPreview.map((check) => (
+                    <div
+                      key={check.code}
+                      className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs"
+                    >
+                      <span
+                        className={
+                          check.passed ? "text-emerald-300" : "text-red-300"
+                        }
+                      >
+                        {check.passed ? "✓" : "×"}
+                      </span>
+                      <span className="text-zinc-400">{check.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {firewallChecks.length > 0 && (
+                <div className="mt-5 rounded-2xl border border-white/10 bg-[#020409] p-4">
+                  <p className="text-sm font-semibold text-white">
+                    API Firewall Result
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {firewallChecks.map((check) => (
+                      <div
+                        key={check.code}
+                        className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs"
+                      >
+                        <span
+                          className={
+                            check.passed ? "text-emerald-300" : "text-red-300"
+                          }
+                        >
+                          {check.passed ? "✓" : "×"}
+                        </span>
+                        <span className="text-zinc-400">{check.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={prepareDeployment}
-                disabled={submitting || riskState === "Blocked"}
+                disabled={submitting || firewallBlocked}
                 className="mt-6 w-full rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? "Preparing..." : "Prepare deployment package"}
