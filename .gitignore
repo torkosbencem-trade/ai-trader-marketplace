@@ -17,6 +17,9 @@ pnpm-debug.log*
 build-check.txt
 build-error.txt
 
+# Generated red-team review reports (may contain client backtest outputs)
+red-team-output/
+
 *.backup*.ts.txt
 *.backup*.tsx.txt
 *.disabled.ts.txt

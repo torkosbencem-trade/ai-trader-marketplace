@@ -3,8 +3,9 @@ import "./globals.css";
 import PlatformNav from "../components/platform-nav";
 
 export const metadata: Metadata = {
-  title: "AI Trader Platform",
-  description: "Institutional AI trading marketplace and execution platform.",
+  title: "StrataOS — Backtest stress testing",
+  description:
+    "Stress-test a systematic strategy's backtest and surface the red flags a tough reviewer would find. Not a stamp of approval, not investment advice.",
 };
 
 export default function RootLayout({

@@ -1,3 +1,11 @@
+export type BacktestTrade = {
+  index: number;
+  return: number;
+  timestamp: string | null;
+  symbol: string | null;
+  side: "long" | "short" | null;
+};
+
 export type ParsedBacktestMetrics = {
   detectedRows: number;
   trades: number;
@@ -6,10 +14,47 @@ export type ParsedBacktestMetrics = {
   averageReturn: number;
   maxDrawdown: number;
   sharpe: number;
+  sharpeRaw: number;
   parserMode: "csv" | "json" | "fallback";
   equitySeries: number[];
   drawdownSeries: number[];
+  tradeRecords: BacktestTrade[];
 };
+
+// Candidate column headers / JSON object keys, matched tolerantly (case- and
+// underscore-insensitive). Array order defines precedence when several match.
+const RETURN_HEADERS = [
+  "return",
+  "returns",
+  "return_%",
+  "return%",
+  "return_percent",
+  "pnl",
+  "pnl_%",
+  "pnl%",
+  "pnl_percent",
+  "profit",
+  "profit_%",
+  "profit%",
+  "profit_percent",
+  "percent",
+];
+
+const TIMESTAMP_HEADERS = [
+  "date",
+  "time",
+  "datetime",
+  "timestamp",
+  "entry_time",
+  "exit_time",
+  "close_time",
+  "opened_at",
+  "closed_at",
+];
+
+const SYMBOL_HEADERS = ["symbol", "ticker", "instrument", "pair", "asset"];
+
+const SIDE_HEADERS = ["side", "direction", "type"];
 
 function normalizeText(text: string) {
   return text
@@ -39,14 +84,105 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// Normalize a header / key for tolerant matching: lowercase, drop underscores.
+function normalizeKey(value: string) {
+  return value.toLowerCase().replace(/_/g, "");
+}
+
+// Strip surrounding quotes and whitespace from a raw cell/value.
+function cleanCell(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value).trim().replace(/^"+|"+$/g, "").trim();
+}
+
+// Parse a date/time cell or value into an ISO 8601 string, or null when absent
+// or unparseable. Pure integer values are treated as epoch timestamps
+// (>= 1e12 -> milliseconds, >= 1e9 -> seconds); smaller integers such as a bare
+// YYYYMMDD or year are ambiguous, so we decline (null) rather than guess.
+function toIsoTimestamp(value: unknown): string | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    if (value >= 1e12) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+    if (value >= 1e9) {
+      const date = new Date(value * 1000);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+    return null;
+  }
+
+  const text = cleanCell(value);
+  if (!text) {
+    return null;
+  }
+
+  if (/^-?\d+$/.test(text)) {
+    return toIsoTimestamp(Number(text));
+  }
+
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+// Clean a symbol / ticker cell or value, or null if absent.
+function toSymbol(value: unknown): string | null {
+  const text = cleanCell(value);
+  return text ? text : null;
+}
+
+// Map a side / direction value to "long" | "short", or null if unrecognized.
+// Only buy/long and sell/short are recognized; anything else (e.g. an order
+// "type" of limit/market) yields null.
+function toSide(value: unknown): "long" | "short" | null {
+  const text = cleanCell(value).toLowerCase();
+  if (text === "buy" || text === "long") {
+    return "long";
+  }
+  if (text === "sell" || text === "short") {
+    return "short";
+  }
+  return null;
+}
+
+// First present candidate key in a JSON row object, matched tolerantly.
+function pickFromRecord(
+  record: Record<string, unknown>,
+  candidates: string[]
+): unknown {
+  const normalized = new Map<string, unknown>();
+  for (const [key, value] of Object.entries(record)) {
+    const norm = normalizeKey(key);
+    if (!normalized.has(norm)) {
+      normalized.set(norm, value);
+    }
+  }
+  for (const candidate of candidates) {
+    const value = normalized.get(normalizeKey(candidate));
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return null;
+}
+
 function calculateMetrics(
-  returns: number[],
+  trades: BacktestTrade[],
   parserMode: ParsedBacktestMetrics["parserMode"]
 ): ParsedBacktestMetrics {
-  const cleanReturns = returns.filter((value) => Number.isFinite(value));
-  const trades = cleanReturns.length;
+  // Bug fix (a): break-even (0%) trades are NO LONGER dropped — every parsed
+  // trade counts. We still guard against non-finite returns (which toNumber
+  // never actually produces) so the math stays safe.
+  const cleanTrades = trades.filter((trade) => Number.isFinite(trade.return));
+  const cleanReturns = cleanTrades.map((trade) => trade.return);
+  const tradeCount = cleanReturns.length;
 
-  if (trades === 0) {
+  if (tradeCount === 0) {
     return {
       detectedRows: 0,
       trades: 0,
@@ -55,16 +191,19 @@ function calculateMetrics(
       averageReturn: 0,
       maxDrawdown: 0,
       sharpe: 0,
+      sharpeRaw: 0,
       parserMode: "fallback",
       equitySeries: [100, 100, 100, 100, 100, 100],
       drawdownSeries: [0, 0, 0, 0, 0, 0],
+      tradeRecords: [],
     };
   }
 
+  // A 0% trade is not a win.
   const wins = cleanReturns.filter((value) => value > 0).length;
-  const winRate = (wins / trades) * 100;
+  const winRate = (wins / tradeCount) * 100;
   const totalReturn = cleanReturns.reduce((sum, value) => sum + value, 0);
-  const averageReturn = totalReturn / trades;
+  const averageReturn = totalReturn / tradeCount;
 
   let equity = 100;
   let peak = 100;
@@ -87,23 +226,32 @@ function calculateMetrics(
   const variance =
     cleanReturns.reduce((sum, value) => {
       return sum + Math.pow(value - averageReturn, 2);
-    }, 0) / trades;
+    }, 0) / tradeCount;
 
   const volatility = Math.sqrt(variance);
+
+  // Existing Sharpe, UNCHANGED: annualized by sqrt(12) and clamped to [0, 4].
   const sharpe =
     volatility > 0 ? (averageReturn / volatility) * Math.sqrt(12) : 0;
 
+  // Bug fix (b): raw per-trade Sharpe = mean / population stddev of trade
+  // returns, with NO sqrt(12) annualization and NO clamping, so suspiciously
+  // high values stay visible (they are themselves a red flag).
+  const sharpeRaw = volatility > 0 ? averageReturn / volatility : 0;
+
   return {
-    detectedRows: trades,
-    trades,
+    detectedRows: tradeCount,
+    trades: tradeCount,
     winRate: Number(winRate.toFixed(1)),
     totalReturn: Number(totalReturn.toFixed(2)),
     averageReturn: Number(averageReturn.toFixed(2)),
     maxDrawdown: Number(maxDrawdown.toFixed(2)),
     sharpe: Number(Math.max(Math.min(sharpe, 4), 0).toFixed(2)),
+    sharpeRaw: Number(sharpeRaw.toFixed(4)),
     parserMode,
     equitySeries,
     drawdownSeries,
+    tradeRecords: cleanTrades,
   };
 }
 
@@ -121,16 +269,26 @@ export function parseBacktestText(
         ? parsed
         : parsed.trades ?? parsed.returns ?? [];
 
-      const returns = rows
-        .map((row: unknown) => {
-          if (typeof row === "number" || typeof row === "string") {
-            return toNumber(row);
-          }
+      // Behavior change: previously rows whose return parsed to 0 were filtered
+      // out. Now every row becomes a trade record (see bug fix (a)).
+      const trades: BacktestTrade[] = (rows as unknown[]).map((row, index) => {
+        if (typeof row === "number" || typeof row === "string") {
+          return {
+            index,
+            return: toNumber(row),
+            timestamp: null,
+            symbol: null,
+            side: null,
+          };
+        }
 
-          if (row && typeof row === "object") {
-            const record = row as Record<string, unknown>;
+        if (row && typeof row === "object") {
+          const record = row as Record<string, unknown>;
 
-            return toNumber(
+          return {
+            index,
+            // Return extraction kept identical to the previous implementation.
+            return: toNumber(
               record.return ??
                 record.returns ??
                 record.pnl ??
@@ -140,14 +298,23 @@ export function parseBacktestText(
                 record.profit ??
                 record.profitPercent ??
                 record.profit_percent
-            );
-          }
+            ),
+            timestamp: toIsoTimestamp(pickFromRecord(record, TIMESTAMP_HEADERS)),
+            symbol: toSymbol(pickFromRecord(record, SYMBOL_HEADERS)),
+            side: toSide(pickFromRecord(record, SIDE_HEADERS)),
+          };
+        }
 
-          return 0;
-        })
-        .filter((value: number) => value !== 0);
+        return {
+          index,
+          return: 0,
+          timestamp: null,
+          symbol: null,
+          side: null,
+        };
+      });
 
-      return calculateMetrics(returns, "json");
+      return calculateMetrics(trades, "json");
     } catch {
       return calculateMetrics([], "fallback");
     }
@@ -176,36 +343,34 @@ export function parseBacktestText(
         .replace(/\s+/g, "_")
     );
 
-  const returnIndex = headers.findIndex((header) =>
-    [
-      "return",
-      "returns",
-      "return_%",
-      "return%",
-      "return_percent",
-      "pnl",
-      "pnl_%",
-      "pnl%",
-      "pnl_percent",
-      "profit",
-      "profit_%",
-      "profit%",
-      "profit_percent",
-      "percent",
-    ].includes(header)
-  );
+  const findHeaderIndex = (candidates: string[]) =>
+    headers.findIndex((header) => candidates.includes(header));
+
+  const returnIndex = findHeaderIndex(RETURN_HEADERS);
 
   if (returnIndex === -1) {
     return calculateMetrics([], "fallback");
   }
 
-  const returns = lines
-    .slice(1)
-    .map((line) => {
-      const cells = line.split(delimiter);
-      return toNumber(cells[returnIndex]);
-    })
-    .filter((value) => value !== 0);
+  const timestampIndex = findHeaderIndex(TIMESTAMP_HEADERS);
+  const symbolIndex = findHeaderIndex(SYMBOL_HEADERS);
+  const sideIndex = findHeaderIndex(SIDE_HEADERS);
 
-  return calculateMetrics(returns, "csv");
+  // Behavior change: previously rows whose return parsed to 0 were filtered
+  // out. Now every data row becomes a trade record (see bug fix (a)).
+  const trades: BacktestTrade[] = lines.slice(1).map((line, index) => {
+    const cells = line.split(delimiter);
+    const cellAt = (cellIndex: number) =>
+      cellIndex === -1 ? null : cells[cellIndex];
+
+    return {
+      index,
+      return: toNumber(cells[returnIndex]),
+      timestamp: toIsoTimestamp(cellAt(timestampIndex)),
+      symbol: toSymbol(cellAt(symbolIndex)),
+      side: toSide(cellAt(sideIndex)),
+    };
+  });
+
+  return calculateMetrics(trades, "csv");
 }

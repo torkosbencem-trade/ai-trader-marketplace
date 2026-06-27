@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   createSupabaseBrowserClient,
@@ -11,33 +11,13 @@ import {
 type UserRole = "investor" | "creator" | "admin";
 type AuthMode = "signin" | "signup";
 
-const roles: Array<{
-  value: UserRole;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "investor",
-    label: "Investor",
-    description: "Browse strategies, request allocation and monitor portfolio.",
-  },
-  {
-    value: "creator",
-    label: "Strategy Creator",
-    description: "Submit strategy evidence and prepare marketplace listings.",
-  },
-  {
-    value: "admin",
-    label: "Admin / Operator",
-    description: "Admin is only granted server-side for whitelisted emails.",
-  },
-];
+// Internal default only — no role is surfaced in the UI.
+const DEFAULT_ROLE: UserRole = "investor";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [role, setRole] = useState<UserRole>("investor");
-  const [email, setEmail] = useState("torkosbencem@gmail.com");
-  const [password, setPassword] = useState("DemoPassword123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [message, setMessage] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
@@ -46,11 +26,6 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(true);
 
   const configured = hasSupabaseBrowserConfig();
-
-  const selectedRole = useMemo(
-    () => roles.find((item) => item.value === role) ?? roles[0],
-    [role]
-  );
 
   async function loadSessionOnce() {
     setLoading(true);
@@ -79,7 +54,10 @@ export default function AuthPage() {
     }
   }
 
-  async function syncProfileForSession(activeSession: Session, selectedUserRole: UserRole) {
+  async function syncProfileForSession(
+    activeSession: Session,
+    selectedUserRole: UserRole
+  ) {
     const response = await fetch("/api/auth/profile", {
       method: "POST",
       headers: {
@@ -88,7 +66,7 @@ export default function AuthPage() {
       },
       body: JSON.stringify({
         role: selectedUserRole,
-        displayName: selectedRole.label,
+        displayName: activeSession.user.email ?? "StrataOS user",
       }),
     });
 
@@ -98,11 +76,7 @@ export default function AuthPage() {
       throw new Error(payload.error ?? "Profile sync failed.");
     }
 
-    setProfileMessage(
-      payload?.data?.role
-        ? `Profile synced. Assigned role: ${payload.data.role}`
-        : "Profile synced successfully."
-    );
+    setProfileMessage("Profile synced.");
 
     return payload.data;
   }
@@ -158,8 +132,8 @@ export default function AuthPage() {
           password,
           options: {
             data: {
-              role,
-              display_name: selectedRole.label,
+              role: DEFAULT_ROLE,
+              display_name: email,
             },
           },
         });
@@ -172,8 +146,8 @@ export default function AuthPage() {
         setSession(activeSession);
 
         if (activeSession) {
-          await syncProfileForSession(activeSession, role);
-          setMessage("Account created, signed in and profile synced.");
+          await syncProfileForSession(activeSession, DEFAULT_ROLE);
+          setMessage("Account created and signed in.");
         } else {
           setMessage(
             "Account created. If email confirmation is enabled, confirm the email before signing in."
@@ -199,12 +173,12 @@ export default function AuthPage() {
         const metadataRole =
           typeof activeSession.user.user_metadata?.role === "string"
             ? (activeSession.user.user_metadata.role as UserRole)
-            : role;
+            : DEFAULT_ROLE;
 
         await syncProfileForSession(activeSession, metadataRole);
       }
 
-      setMessage("Signed in with Supabase Auth.");
+      setMessage("Signed in.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Auth action failed.");
     } finally {
@@ -246,38 +220,32 @@ export default function AuthPage() {
           <div className="grid gap-8 lg:grid-cols-[1fr_460px] lg:items-end">
             <div>
               <div className="mb-4 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
-                Supabase Auth
+                Authentication
               </div>
 
               <h1 className="max-w-4xl text-4xl font-semibold tracking-tight md:text-6xl">
-                Stable authentication for StrataOS.
+                Sign in to StrataOS.
               </h1>
 
               <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-400 md:text-lg">
-                Sign up or sign in with Supabase Auth. The page uses a stable
-                session flow without continuous browser auth polling.
+                Sign in or create an account. Authentication is powered by
+                Supabase, with a stable session flow that loads once and
+                refreshes after each action.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
-                  href="/workspace"
-                  className="rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-semibold text-black transition hover:bg-emerald-300"
+                  href="/"
+                  className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.05]"
                 >
-                  Open workspace
+                  Back to home
                 </Link>
 
                 <Link
-                  href="/profile"
-                  className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.05]"
+                  href="/stress-test"
+                  className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-5 py-4 text-sm font-semibold text-emerald-300 transition hover:border-emerald-400/50 hover:bg-emerald-400/20 hover:text-emerald-200"
                 >
-                  Open profile
-                </Link>
-
-                <Link
-                  href="/api/auth/status"
-                  className="rounded-2xl border border-white/10 px-5 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.05]"
-                >
-                  Auth API status
+                  Backtest stress test
                 </Link>
               </div>
             </div>
@@ -304,20 +272,12 @@ export default function AuthPage() {
                   label="Session"
                   value={session ? "Active" : "No active session"}
                 />
-                <Row
-                  label="Profile sync"
-                  value="Manual after auth action"
-                />
-                <Row
-                  label="Route protection"
-                  value="Not enabled yet"
-                />
               </div>
 
               {!configured && (
                 <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-300">
-                  Add NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local and Vercel
-                  Environment Variables.
+                  Add NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local to enable
+                  sign-in.
                 </div>
               )}
             </div>
@@ -358,7 +318,8 @@ export default function AuthPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 type="email"
-                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-white outline-none"
+                placeholder="you@example.com"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-white outline-none placeholder:text-zinc-600"
               />
             </label>
 
@@ -372,30 +333,6 @@ export default function AuthPage() {
               />
             </label>
 
-            {mode === "signup" && (
-              <div>
-                <p className="mb-3 text-sm text-zinc-400">Initial role</p>
-                <div className="grid gap-3">
-                  {roles.map((item) => (
-                    <button
-                      key={item.value}
-                      onClick={() => setRole(item.value)}
-                      className={`rounded-2xl border p-4 text-left transition hover:border-emerald-400/40 hover:bg-white/[0.05] ${
-                        role === item.value
-                          ? "border-emerald-400/40 bg-emerald-400/[0.06]"
-                          : "border-white/10 bg-black/20"
-                      }`}
-                    >
-                      <p className="font-semibold text-white">{item.label}</p>
-                      <p className="mt-1 text-xs leading-5 text-zinc-500">
-                        {item.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <button
               onClick={handleSubmit}
               disabled={working || !email || !password}
@@ -404,8 +341,8 @@ export default function AuthPage() {
               {working
                 ? "Working..."
                 : mode === "signup"
-                ? "Create Supabase account"
-                : "Sign in with Supabase"}
+                ? "Create account"
+                : "Sign in"}
             </button>
 
             {session && (
@@ -450,14 +387,6 @@ export default function AuthPage() {
               <div className="mt-6 space-y-3 text-sm">
                 <Row label="User ID" value={session.user.id} />
                 <Row
-                  label="Role metadata"
-                  value={
-                    typeof session.user.user_metadata?.role === "string"
-                      ? session.user.user_metadata.role
-                      : "not set"
-                  }
-                />
-                <Row
                   label="Provider"
                   value={session.user.app_metadata?.provider ?? "email"}
                 />
@@ -472,30 +401,27 @@ export default function AuthPage() {
               </div>
 
               <Link
-                href="/workspace"
+                href="/stress-test"
                 className="mt-6 block rounded-2xl bg-emerald-400 px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-emerald-300"
               >
-                Continue to workspace
+                Go to stress test
               </Link>
             </>
           ) : (
             <>
               <h3 className="mt-1 text-2xl font-semibold">No active session</h3>
               <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Create a test user or sign in with an existing Supabase Auth
+                Create an account or sign in with an existing Supabase Auth
                 account.
               </p>
             </>
           )}
 
-          <div className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-5">
-            <p className="text-sm font-medium text-blue-300">
-              Stability update
-            </p>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+            <p className="text-sm font-medium text-zinc-300">Demo note</p>
             <p className="mt-3 text-xs leading-5 text-zinc-500">
-              This version avoids continuous auth listeners on the auth page.
-              Session is loaded once and refreshed after sign in, sign up or
-              sign out.
+              Sign-in is for the pilot only. Route protection is not enabled yet,
+              and this is not investment advice.
             </p>
           </div>
         </aside>

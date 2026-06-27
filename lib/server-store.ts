@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import type { BacktestTrade } from "./backtest-parser";
 
 export type ReviewStatus = "Pending" | "Approved" | "Rejected";
 
@@ -14,6 +15,10 @@ export type ParsedMetrics = {
   parserMode: "csv" | "json" | "fallback";
   equitySeries?: number[];
   drawdownSeries?: number[];
+  // Optional forward-prep fields produced by the parser. Kept optional so
+  // existing stored records without them remain valid.
+  sharpeRaw?: number;
+  tradeRecords?: BacktestTrade[];
 };
 
 export type StoredSubmission = {

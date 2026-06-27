@@ -1,20 +1,27 @@
 import Link from "next/link";
 
-export default function NotFoundPage() {
+export const metadata = {
+  title: "Not in current focus — StrataOS",
+  description: "This area is not part of the current StrataOS focus.",
+};
+
+export default function ParkedPage() {
   return (
     <main className="min-h-screen bg-[#05070D] text-white">
-      <section className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-20 lg:px-8">
-        <div className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
-          404 — Page not found
+      <section className="mx-auto max-w-2xl px-6 py-24 lg:px-8">
+        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-300">
+          Not in current focus
         </div>
 
         <h1 className="mt-6 text-4xl font-semibold tracking-tight md:text-5xl">
-          This page does not exist.
+          This area is not part of the current focus.
         </h1>
 
         <p className="mt-5 text-base leading-8 text-zinc-400">
-          The page you are looking for is not part of StrataOS. Head back to the
-          home page or the stress-test tool.
+          StrataOS is focused on one thing right now: stress-testing systematic
+          strategy backtests and surfacing red flags. The marketplace,
+          allocation and admin features are not part of the current product
+          direction and are not available here.
         </p>
 
         <div className="mt-9 flex flex-col gap-3 sm:flex-row">
