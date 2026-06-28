@@ -29,15 +29,19 @@ const RETURN_HEADERS = [
   "return_%",
   "return%",
   "return_percent",
+  "return_pct",
   "pnl",
   "pnl_%",
   "pnl%",
   "pnl_percent",
+  "pnl_pct",
   "profit",
   "profit_%",
   "profit%",
   "profit_percent",
+  "profit_pct",
   "percent",
+  "pct",
 ];
 
 const TIMESTAMP_HEADERS = [
