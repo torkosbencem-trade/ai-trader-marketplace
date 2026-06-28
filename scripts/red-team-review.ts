@@ -20,6 +20,11 @@ import { analyzeRedFlags } from "../lib/red-flags/summary";
 import type { RedFlagSummary } from "../lib/red-flags/summary";
 import type { OutlierDependencyResult } from "../lib/red-flags/outlier-dependency";
 import type { IsOosSplitResult } from "../lib/red-flags/is-oos-split";
+import {
+  equityCollapseSvg,
+  contributionSvg,
+  reportCardSvg,
+} from "../lib/red-flags/charts";
 
 export type ReviewInput = {
   content: string;
@@ -27,6 +32,14 @@ export type ReviewInput = {
   sourceFile?: string; // display path; defaults to fileName
   strategyName?: string; // defaults to fileName
   analyzedAt: string; // ISO timestamp (injected for determinism/testability)
+  illustrative?: boolean; // tag charts as a sample (off for real backtests)
+};
+
+export type ChartArtifact = {
+  kind: "equity" | "contribution" | "report-card";
+  file: string;
+  label: string;
+  svg: string | null; // null if generation failed (never throws the CLI)
 };
 
 export type ReportEnvelope = {
@@ -49,6 +62,7 @@ export type ReviewResult = {
   text: string;
   markdown: string;
   json: string;
+  charts: ChartArtifact[];
 };
 
 // ---------------------------------------------------------------------------
@@ -257,7 +271,10 @@ function buildTextReport(envelope: ReportEnvelope): string {
 // Markdown report
 // ---------------------------------------------------------------------------
 
-function buildMarkdownReport(envelope: ReportEnvelope): string {
+function buildMarkdownReport(
+  envelope: ReportEnvelope,
+  chartFiles: { file: string; label: string }[] = []
+): string {
   const { summary } = envelope;
   const confidence = summary.confidence;
   const out: string[] = [];
@@ -372,6 +389,15 @@ function buildMarkdownReport(envelope: ReportEnvelope): string {
   }
   out.push("");
 
+  if (chartFiles.length > 0) {
+    out.push("## Charts");
+    out.push("");
+    for (const chart of chartFiles) {
+      out.push(`![${chart.label}](${chart.file})`);
+      out.push("");
+    }
+  }
+
   out.push("---");
   out.push(`_${DISCLAIMER}_`);
   out.push("");
@@ -402,12 +428,62 @@ export function runReview(input: ReviewInput): ReviewResult {
     summary,
   };
 
+  // Charts are derived from the SAME single analysis. Each is generated
+  // defensively — a chart failure must never break the report.
+  const isSample = Boolean(input.illustrative);
+  const slug = slugify(input.strategyName ?? input.fileName);
+  const outlierDetails =
+    summary.moduleResults.outlier.status === "ok"
+      ? (summary.details.outlier as OutlierDependencyResult | null)
+      : null;
+  const tradeReturns = parsed.tradeRecords.map((trade) => trade.return);
+
+  const charts: ChartArtifact[] = [
+    {
+      kind: "equity",
+      file: `${slug}-equity.svg`,
+      label: "Equity — backtest minus its 5 best trades",
+      svg: safeChart(() =>
+        equityCollapseSvg(parsed, outlierDetails, { isSample })
+      ),
+    },
+    {
+      kind: "contribution",
+      file: `${slug}-contribution.svg`,
+      label: "Per-trade contribution",
+      svg: safeChart(() => contributionSvg(tradeReturns, { isSample })),
+    },
+    {
+      kind: "report-card",
+      file: `${slug}-report-card.svg`,
+      label: "Red-flag report card",
+      svg: safeChart(() =>
+        reportCardSvg(summary, envelope.parserMetrics, { isSample })
+      ),
+    },
+  ];
+
+  const chartFiles = charts
+    .filter((chart) => chart.svg)
+    .map((chart) => ({ file: chart.file, label: chart.label }));
+
   return {
     envelope,
     text: buildTextReport(envelope),
-    markdown: buildMarkdownReport(envelope),
+    markdown: buildMarkdownReport(envelope, chartFiles),
     json: JSON.stringify(envelope, null, 2),
+    charts,
   };
+}
+
+// A chart must never crash the CLI: swallow any failure to null.
+function safeChart(fn: () => string): string | null {
+  try {
+    const svg = fn();
+    return typeof svg === "string" && svg.startsWith("<svg") ? svg : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -418,11 +494,13 @@ function parseArgs(argv: string[]): {
   file?: string;
   out: string;
   name?: string;
+  illustrative: boolean;
 } {
   const args = argv.slice(2);
   let file: string | undefined;
   let out = "./red-team-output";
   let name: string | undefined;
+  let illustrative = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -430,19 +508,21 @@ function parseArgs(argv: string[]): {
       out = args[++i] ?? out;
     } else if (arg === "--name") {
       name = args[++i];
+    } else if (arg === "--illustrative") {
+      illustrative = true;
     } else if (!arg.startsWith("--") && file === undefined) {
       file = arg;
     }
   }
-  return { file, out, name };
+  return { file, out, name, illustrative };
 }
 
 export function main(argv: string[]): number {
-  const { file, out, name } = parseArgs(argv);
+  const { file, out, name, illustrative } = parseArgs(argv);
 
   if (!file) {
     process.stderr.write(
-      "Usage: npx tsx scripts/red-team-review.ts <path-to-backtest.csv|json> [--out <dir>] [--name \"Strategy Name\"]\n"
+      "Usage: npx tsx scripts/red-team-review.ts <path-to-backtest.csv|json> [--out <dir>] [--name \"Strategy Name\"] [--illustrative]\n"
     );
     return 2;
   }
@@ -471,6 +551,7 @@ export function main(argv: string[]): number {
       sourceFile: file,
       strategyName,
       analyzedAt,
+      illustrative,
     });
   } catch (error) {
     process.stderr.write(
@@ -495,11 +576,23 @@ export function main(argv: string[]): number {
   }
 
   const slug = slugify(strategyName);
+  const writtenCharts: string[] = [];
   try {
     fs.mkdirSync(out, { recursive: true });
     fs.writeFileSync(path.join(out, `${slug}.txt`), review.text, "utf8");
     fs.writeFileSync(path.join(out, `${slug}.md`), review.markdown, "utf8");
     fs.writeFileSync(path.join(out, `${slug}.json`), review.json, "utf8");
+
+    for (const chart of review.charts) {
+      if (chart.svg) {
+        fs.writeFileSync(path.join(out, chart.file), chart.svg, "utf8");
+        writtenCharts.push(chart.file);
+      } else {
+        process.stderr.write(
+          `warning: ${chart.kind} chart could not be generated; the report was still produced.\n`
+        );
+      }
+    }
   } catch (error) {
     process.stderr.write(
       `Error: could not write outputs to "${out}": ${
@@ -509,10 +602,9 @@ export function main(argv: string[]): number {
     return 1;
   }
 
+  const written = [`${slug}.txt`, `${slug}.md`, `${slug}.json`, ...writtenCharts];
   process.stdout.write(review.text + "\n");
-  process.stdout.write(
-    `\nReports written to ${out}/: ${slug}.txt, ${slug}.md, ${slug}.json\n`
-  );
+  process.stdout.write(`\nReports written to ${out}/: ${written.join(", ")}\n`);
   return 0;
 }
 

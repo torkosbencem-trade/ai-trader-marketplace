@@ -20,6 +20,9 @@ build-error.txt
 # Generated red-team review reports (may contain client backtest outputs)
 red-team-output/
 
+# Generated screenshots from the run skill driver
+.claude/skills/*/screenshots/
+
 *.backup*.ts.txt
 *.backup*.tsx.txt
 *.disabled.ts.txt
